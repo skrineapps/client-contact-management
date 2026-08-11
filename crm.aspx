@@ -79,7 +79,9 @@
 
   @keyframes fadeInUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 
-  .top-accent{height:3px;background:var(--red);}
+  .top-accent{height:3px;background:var(--red);position:relative;overflow:hidden;}
+  .top-accent.loading::after{content:"";position:absolute;top:0;left:-40%;width:40%;height:100%;background:rgba(255,255,255,0.75);animation:topProgressSweep 1.1s ease-in-out infinite;}
+  @keyframes topProgressSweep{0%{left:-40%;}100%{left:140%;}}
   .app-header{background:var(--card);border-bottom:1px solid var(--line);padding:15px 36px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;}
   .brand-block{display:flex;align-items:center;gap:12px;}
   .logo{height:26px;width:auto;display:block;}
@@ -134,6 +136,8 @@
   .controls button.primary{background:var(--red);border-color:var(--red);color:#fff;margin-left:auto;}
   .controls button.primary:hover{background:var(--red);color:#fff;}
   .controls button.primary:hover i{transform:none;}
+  .controls button:disabled{opacity:.6;cursor:not-allowed;}
+  .controls button.spinning i{animation:spin .8s linear infinite;}
   .search-wrap{position:relative;flex:1;min-width:220px;}
   .search-wrap input{width:100%;padding:9px 16px 9px 36px;border:1px solid var(--line);background:var(--card);font-size:13px;border-radius:8px;color:var(--ink);}
   .search-wrap input::placeholder{color:var(--faint);}
@@ -141,7 +145,8 @@
 
   .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 20px rgba(20,18,15,0.06);}
   .contacts-table{table-layout:fixed;width:100%;min-width:2080px;border-collapse:collapse;font-size:13px;}
-  .contacts-table thead th{position:relative;text-align:left;padding:11px 18px 11px 16px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#fff;font-weight:700;background:var(--red);overflow:hidden;}
+  .contacts-table thead th{position:relative;text-align:left;padding:11px 18px 11px 16px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#fff;font-weight:700;background:var(--red);overflow:hidden;border-right:1px solid rgba(255,255,255,0.16);}
+  .contacts-table thead th:last-child{border-right:none;}
   .th-inner{display:flex;align-items:center;justify-content:space-between;gap:6px;}
   .th-label{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .th-filter-btn{flex:0 0 auto;background:none;border:none;padding:3px 5px;color:rgba(255,255,255,0.75);cursor:pointer;font-size:10px;border-radius:5px;line-height:1;transition:background .15s ease,color .15s ease;}
@@ -160,6 +165,10 @@
   .col-menu-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700;padding:8px 11px 6px;}
   .col-menu-search{margin:0 6px 6px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--page);color:var(--ink);font-size:12px;width:calc(100% - 12px);}
   .col-menu-values{max-height:220px;overflow-y:auto;padding:2px 2px;}
+  .col-menu-range{display:flex;gap:8px;padding:4px 6px 8px;}
+  .col-menu-range label{flex:1;display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
+  .col-menu-range-input{font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--page);color:var(--ink);width:100%;box-sizing:border-box;}
+  .col-menu-range-input:focus{outline:2px solid var(--red);outline-offset:1px;}
   .col-menu-value{display:flex !important;align-items:center !important;gap:8px;padding:6px 9px;border-radius:6px;font-size:12.5px;cursor:pointer;}
   .col-menu-value:hover{background:var(--page);}
   .col-menu-value input[type="checkbox"]{position:static !important;opacity:1 !important;appearance:auto !important;-webkit-appearance:checkbox !important;float:none !important;display:inline-block !important;width:16px !important;height:16px !important;min-width:16px !important;margin:0 !important;padding:0 !important;flex:0 0 auto !important;accent-color:var(--red);}
@@ -208,7 +217,11 @@
   @keyframes modalPop{from{opacity:0;transform:scale(0.96) translateY(6px);}to{opacity:1;transform:scale(1) translateY(0);}}
   .overlay{position:fixed;inset:0;background:rgba(20,18,15,0.45);z-index:1000;backdrop-filter:blur(2px);display:flex;align-items:center;justify-content:center;padding:24px;}
   .overlay.hidden{display:none;}
-  .modal{position:relative;width:100%;max-width:720px;max-height:88vh;background:var(--card);border-top:3px solid var(--red);overflow-y:auto;padding:34px 38px;border-radius:16px;box-shadow:0 28px 64px rgba(20,18,15,0.22);animation:modalPop .18s ease;}
+  .modal{position:relative;width:100%;max-width:720px;max-height:88vh;background:var(--card);border-top:3px solid var(--red);overflow-y:auto;padding:34px 38px;border-radius:16px;box-shadow:0 28px 64px rgba(20,18,15,0.22);animation:modalPop .18s ease;scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+  .modal::-webkit-scrollbar{width:6px;}
+  .modal::-webkit-scrollbar-track{background:transparent;}
+  .modal::-webkit-scrollbar-thumb{background:var(--line);border-radius:20px;}
+  .modal::-webkit-scrollbar-thumb:hover{background:var(--faint);}
   .modal-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
   .modal h2{font-family:var(--font-display);font-size:21px;font-weight:800;margin:0 0 4px;letter-spacing:-0.01em;}
   .modal .modal-sub{color:var(--muted);font-size:13.5px;margin-bottom:20px;}
@@ -218,10 +231,7 @@
   .section-label:first-of-type{margin-top:0;}
   .field-grid{display:grid;grid-template-columns:170px 1fr;gap:12px 16px;font-size:14px;}
   .field-grid dt{color:var(--muted);}
-  .field-grid dd{margin:0;color:var(--ink);}
-  details.raw{margin-top:16px;}
-  details.raw summary{cursor:pointer;font-size:12px;color:var(--faint);}
-  details.raw pre{font-size:11px;background:var(--page);padding:10px;border-radius:10px;overflow-x:auto;border:1px solid var(--line);}
+  .field-grid dd{margin:0;color:var(--ink);display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
   .modal .close-row{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
   .btn{border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:700;padding:10px 22px;border-radius:8px;cursor:pointer;color:var(--ink);transition:border-color .15s ease,transform .15s ease;}
   .btn.primary{background:var(--red);border-color:var(--red);color:#fff;}
@@ -256,6 +266,40 @@
   .checklist-empty{font-size:12.5px;color:var(--faint);padding:6px 8px;}
   .form-error{background:var(--red-wash);color:var(--red);padding:9px 12px;border-radius:8px;font-size:12.5px;margin-top:12px;}
 
+  .copilot-fab{position:fixed;bottom:24px;right:24px;width:56px;height:56px;border-radius:50%;background:var(--card);border:1px solid var(--line);padding:0;box-shadow:0 10px 24px rgba(20,18,15,0.18);cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:1500;transition:transform .15s ease,box-shadow .15s ease;}
+  .copilot-fab:hover{transform:translateY(-2px) scale(1.04);box-shadow:0 14px 28px rgba(20,18,15,0.24);}
+  .copilot-fab.open{box-shadow:0 0 0 3px var(--red-wash),0 10px 24px rgba(20,18,15,0.18);}
+  .copilot-fab img{width:30px;height:30px;object-fit:contain;display:block;}
+  .copilot-launcher{position:fixed;bottom:92px;right:24px;width:320px;max-width:calc(100vw - 32px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 56px rgba(20,18,15,0.24);padding:10px;z-index:1499;animation:modalPop .18s ease;}
+  .copilot-menu-item{display:flex;align-items:center;gap:12px;width:100%;background:none;border:none;padding:11px 12px;border-radius:10px;font-size:13.5px;color:var(--ink);cursor:pointer;text-align:left;}
+  .copilot-menu-item i{width:16px;text-align:center;color:var(--muted);font-size:14px;}
+  .copilot-menu-item:hover{background:var(--page);}
+  .copilot-launcher-divider{height:1px;background:var(--line);margin:6px 4px;}
+  .copilot-open-chat-btn{display:flex;align-items:center;gap:10px;width:100%;background:var(--card);border:1.5px solid var(--ink);border-radius:10px;padding:11px 12px;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer;text-align:left;margin-bottom:8px;}
+  .copilot-open-chat-btn:hover{background:var(--page);}
+  .copilot-quick-ask{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 6px 6px 14px;}
+  .copilot-quick-ask input{flex:1;border:none;background:none;font-size:13px;color:var(--ink);outline:none;min-width:0;}
+  .copilot-quick-ask input::placeholder{color:var(--faint);}
+  .copilot-quick-ask button{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;}
+  .copilot-panel{position:fixed;bottom:92px;right:24px;width:360px;max-width:calc(100vw - 32px);height:500px;max-height:calc(100vh - 140px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 56px rgba(20,18,15,0.24);display:flex;flex-direction:column;overflow:hidden;z-index:1499;animation:modalPop .18s ease;}
+  .copilot-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--red);color:#fff;flex:0 0 auto;}
+  .copilot-title{font-family:var(--font-display);font-weight:800;font-size:14px;}
+  .copilot-subtitle{font-size:11px;opacity:.85;margin-top:1px;}
+  .copilot-header .close{background:rgba(255,255,255,0.18);color:#fff;}
+  .copilot-header .close:hover{background:rgba(255,255,255,0.3);color:#fff;}
+  .copilot-messages{flex:1 1 auto;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:var(--line) transparent;}
+  .copilot-messages::-webkit-scrollbar{width:6px;}
+  .copilot-messages::-webkit-scrollbar-thumb{background:var(--line);border-radius:20px;}
+  .copilot-msg{max-width:85%;padding:9px 13px;border-radius:14px;font-size:13px;line-height:1.45;white-space:pre-wrap;word-break:break-word;}
+  .copilot-msg.user{align-self:flex-end;background:var(--red);color:#fff;border-bottom-right-radius:4px;}
+  .copilot-msg.assistant{align-self:flex-start;background:var(--page);color:var(--ink);border:1px solid var(--line);border-bottom-left-radius:4px;}
+  .copilot-thinking{display:flex;align-items:center;gap:8px;padding:0 16px 10px;font-size:12px;color:var(--muted);flex:0 0 auto;}
+  .copilot-input-row{display:flex;align-items:flex-end;gap:8px;padding:12px;border-top:1px solid var(--line);flex:0 0 auto;}
+  .copilot-input-row textarea{flex:1;resize:none;max-height:90px;font-size:13px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--page);color:var(--ink);font-family:inherit;}
+  .copilot-input-row textarea:focus{outline:2px solid var(--red);outline-offset:1px;}
+  .copilot-send{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:var(--red);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:opacity .15s ease;}
+  .copilot-send:disabled{opacity:.5;cursor:not-allowed;}
+
   @media (max-width:640px){
     .kpi-strip{grid-template-columns:repeat(2,1fr);}
     .search-wrap{flex-basis:100%;}
@@ -263,18 +307,21 @@
     .brand-eyebrow{display:none;}
     .form-grid{grid-template-columns:1fr;}
     .controls button.primary{margin-left:0;}
+    .copilot-panel{right:16px;bottom:84px;width:calc(100vw - 32px);}
+    .copilot-launcher{right:16px;bottom:84px;width:calc(100vw - 32px);}
+    .copilot-fab{right:16px;bottom:16px;}
   }
 </style>
 </head>
 <body>
 
-<div class="top-accent"></div>
+<div class="top-accent" id="top-accent"></div>
 <header class="app-header">
   <div class="brand-block">
     <img class="logo" src="https://raw.githubusercontent.com/skrineapps/skr-background-assets/main/logo.png" alt="Skrine" />
     <div class="brand-text">
-      <div class="brand-title">Client Contacts</div>
-      <div class="brand-eyebrow">Skrine CRM</div>
+      <div class="brand-title">Client Contacts Management System</div>
+      <!-- <div class="brand-eyebrow">Skrine CRM</div> -->
     </div>
   </div>
   <div class="navbar-user" id="navbar-user">
@@ -327,6 +374,16 @@
         <div class="kpi-value" id="stat-cards">0</div>
         <div class="kpi-label">On Greeting List</div>
       </div>
+      <div class="kpi-card">
+        <i class="fa-solid fa-scale-balanced kpi-icon" aria-hidden="true"></i>
+        <div class="kpi-value" id="stat-practice-areas">0</div>
+        <div class="kpi-label">Practice Areas</div>
+      </div>
+      <div class="kpi-card">
+        <i class="fa-solid fa-graduation-cap kpi-icon" aria-hidden="true"></i>
+        <div class="kpi-value" id="stat-alumni">0</div>
+        <div class="kpi-label">Alumni / Foreign Law</div>
+      </div>
     </div>
 
     <div class="controls">
@@ -368,6 +425,48 @@
   <div class="modal" id="modal-box"></div>
 </div>
 
+<button type="button" class="copilot-fab" id="copilot-fab" aria-label="Open Copilot">
+  <img src="https://raw.githubusercontent.com/skrineapps/skr-background-assets/main/Copilot-Logo.png" alt="Copilot" />
+</button>
+
+<div class="copilot-launcher hidden" id="copilot-launcher">
+  <button type="button" class="copilot-menu-item" data-prompt="Summarize my contacts for me.">
+    <i class="fa-solid fa-chart-pie" aria-hidden="true"></i> Summarize my contacts
+  </button>
+  <button type="button" class="copilot-menu-item" data-prompt="Which practice areas do our contacts fall under, and which are most common?">
+    <i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Practice area breakdown
+  </button>
+  <button type="button" class="copilot-menu-item" data-prompt="Which countries do our contacts come from?">
+    <i class="fa-solid fa-earth-asia" aria-hidden="true"></i> Contacts by country
+  </button>
+  <div class="copilot-launcher-divider"></div>
+  <button type="button" class="copilot-open-chat-btn" id="copilot-open-chat">
+    <i class="fa-solid fa-comment-dots" aria-hidden="true"></i> Open chat
+  </button>
+  <form class="copilot-quick-ask" id="copilot-quick-ask">
+    <input type="text" id="copilot-quick-input" placeholder="Ask a question about your contacts" />
+    <button type="submit" aria-label="Send"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></button>
+  </form>
+</div>
+
+<div class="copilot-panel hidden" id="copilot-panel">
+  <div class="copilot-header">
+    <div class="copilot-header-text">
+      <div class="copilot-title">Skrine Copilot</div>
+      <div class="copilot-subtitle">Ask about your contacts</div>
+    </div>
+    <button type="button" class="close" id="copilot-close" aria-label="Close Copilot"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+  </div>
+  <div class="copilot-messages" id="copilot-messages"></div>
+  <div class="copilot-thinking hidden" id="copilot-thinking">
+    <span class="spinner"></span> Thinking...
+  </div>
+  <div class="copilot-input-row">
+    <textarea id="copilot-input" placeholder="Ask a question..." rows="1"></textarea>
+    <button type="button" class="copilot-send" id="copilot-send" aria-label="Send"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></button>
+  </div>
+</div>
+
 <script>
 (function () {
   "use strict";
@@ -402,6 +501,22 @@
     // checklist from the (transitive/nested) members of these two Azure AD security groups.
     partnerInChargeGroupId: "69f85e06-b41b-4e15-8e15-1bb7c7524f15",
     lawyersGroupId: "07409114-d634-491c-a7a7-c08d7da57734",
+    // Copilot chat, via Azure OpenAI - authenticated with the same Azure AD sign-in as
+    // everything else (no API key embedded in this file, since a static page has no server
+    // to keep a key secret from anyone who views its source). Needs:
+    // 1. An Azure OpenAI resource with a model deployed - fill in endpoint/deploymentName
+    //    below once you have one (see the comment above CONFIG for setup steps).
+    // 2. The signed-in users granted the "Cognitive Services OpenAI User" role on that
+    //    resource (Azure Portal > the resource > Access control (IAM) > Add role assignment).
+    // 3. This app registration granted the "Azure Cognitive Services" API's delegated
+    //    user_impersonation permission, admin-consented (a third API, distinct from both
+    //    Microsoft Graph and the SharePoint API used elsewhere in this file).
+    azureOpenAI: {
+      endpoint: "https://YOUR-RESOURCE-NAME.openai.azure.com",
+      deploymentName: "YOUR-DEPLOYMENT-NAME",
+      apiVersion: "2024-08-01-preview",
+      scopes: ["https://cognitiveservices.azure.com/.default"],
+    },
   };
 
   // If your SharePoint list's internal column names differ from these guesses,
@@ -421,13 +536,33 @@
     practiceArea: ["PracticeArea", "Practice_x0020_Area"],
     greetingCards: ["GreetingCards", "Greeting_x0020_Cards"],
     alumniForeign: ["Alumni_x002f_Foreign", "AlumniForeign"],
-    // "Lawyers" was the CSV export header, but this list has no Person/Group column by that
-    // name at all (confirmed via the personOrGroup facet in fetchListSchema's console log) -
-    // "ContactOwners" (plural) is the actual multi-value Person/Group column, matching the
-    // "can be more than one" requirement. If that's wrong, add the real name here.
-    lawyers: ["Lawyers", "ContactOwners"],
-    createdByEmailText: ["CreatedByEmailText"],
+    // Confirmed separate from "Contact Owner" (a plain text field, unrelated). No column
+    // matched "Lawyers" by internal name as of the last schema scan - fetchListSchema also
+    // tries matching by current display name as a fallback and logs the full column list if
+    // neither finds it, since the internal name may not resemble "Lawyers" at all.
+    lawyers: ["Lawyers"],
     contactOwner: ["ContactOwner"],
+  };
+
+  // Fallback match target for fetchListSchema's field-name resolver, used when a column's
+  // internal name doesn't match any FIELD_ALIASES candidate (most often because the column
+  // was renamed after creation - SharePoint keeps the original internal name forever).
+  const DISPLAY_NAME_GUESSES = {
+    firstName: ["First Name"],
+    lastName: ["Last Name"],
+    email: ["Email"],
+    companyName: ["Company Name"],
+    salutation: ["Salutation"],
+    position: ["Position"],
+    phoneNumber: ["Phone Number"],
+    country: ["Country"],
+    partner: ["Partner"],
+    partnerInCharge: ["Partner In Charge"],
+    practiceArea: ["Practice Area"],
+    greetingCards: ["Greeting Cards", "Greeting Card"],
+    alumniForeign: ["Alumni / Foreign", "Alumni/Foreign", "Alumni / Foreign Law"],
+    lawyers: ["Lawyers", "Lawyer In Charge", "Lawyer"],
+    contactOwner: ["Contact Owner"],
   };
 
   const PAGE_SIZE = 25;
@@ -438,7 +573,7 @@
   // from each label's character length (see defaultColumnWidths below), so a column starts
   // just wide enough for its own header title; resizing by hand still overrides per-column.
   const COLUMNS = [
-    { key: "id", label: "ID", cellClass: "id-cell", get: (c) => c.id },
+    { key: "id", label: "ID", cellClass: "id-cell", get: (c) => c.id, filterType: "range" },
     { key: "firstName", label: "First Name", cellClass: "name-cell", get: (c) => c.firstName },
     { key: "lastName", label: "Last Name", cellClass: "name-cell", get: (c) => c.lastName },
     { key: "email", label: "Email", cellClass: "muted-cell", get: (c) => c.email },
@@ -449,10 +584,10 @@
     { key: "country", label: "Country", cellClass: "muted-cell", get: (c) => c.country },
     { key: "partner", label: "Partner", cellClass: "muted-cell", get: (c) => c.partner },
     { key: "practiceArea", label: "Practice Area", get: (c) => c.practiceArea.join(", "), chip: (c) => c.practiceArea },
-    { key: "greetingCards", label: "Greeting Card", get: (c) => c.greetingCards.join(", "), chip: (c) => c.greetingCards },
+    { key: "greetingCards", label: "Greeting Card", get: (c) => c.greetingCards.join(", "), chip: (c) => c.greetingCards, chipColor: greetingChipColor },
     { key: "alumniForeign", label: "Alumni / Foreign Law", cellClass: "muted-cell", get: (c) => c.alumniForeign },
     { key: "lawyers", label: "Lawyers", get: (c) => c.lawyers.join(", "), chip: (c) => c.lawyers },
-    { key: "created", label: "Created Date", cellClass: "muted-cell", get: (c) => (c.created ? new Date(c.created).toLocaleDateString() : "") },
+    { key: "created", label: "Created Date", cellClass: "muted-cell", get: (c) => formatDateTime(c.created) },
   ];
 
   // Each column's share of the table's width, proportional to its header title's length -
@@ -486,6 +621,18 @@
   // header, because SharePoint keeps a column's original internal name forever even after
   // the display name (and therefore the export header) changes.
   let personColumnNames = { partnerInCharge: null, lawyers: null };
+  // Whether each resolved Person/Group column actually allows multiple people (from Graph's
+  // own personOrGroup.allowMultipleSelection facet) - determines whether writes need the
+  // {results: [...]} wrapper or a bare single ID. Don't assume from the UI (a single-select
+  // dropdown doesn't prove the underlying column is single-value) or from FIELD_ALIASES.
+  let personColumnMultiValue = { partnerInCharge: false, lawyers: false };
+
+  // The real internal SharePoint column name for every known field, resolved from the list
+  // schema the same way as personColumnNames above - see fetchListSchema. writeKey() reads
+  // from this first, falling back to the original FIELD_ALIASES guess only if the schema
+  // scan hasn't run yet or genuinely found no match, since a guessed name that's wrong is
+  // exactly what causes Graph's unhelpful generic 400 "Invalid request" on save.
+  let resolvedFieldNames = {};
 
   // Column filters work like Excel/SharePoint's column header menu: columnFilterValues[key]
   // is a Set of the values allowed through for that column, or absent entirely when no
@@ -506,6 +653,28 @@
 
   // ---------- small helpers ----------
 
+  // Short-TTL sessionStorage cache for data that rarely changes (list schema, AD group
+  // membership) but was otherwise being re-fetched from scratch on every single browser
+  // refresh, even though nothing about it had changed since the last load a moment ago.
+  // sessionStorage survives a browser refresh (unlike page-lifetime variables) but not a
+  // closed tab, so this only ever saves round trips within the same active session.
+  function getSessionCache(key, maxAgeMs) {
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return null;
+      const { value, savedAt } = JSON.parse(raw);
+      if (Date.now() - savedAt > maxAgeMs) return null;
+      return value;
+    } catch (e) {
+      return null;
+    }
+  }
+  function setSessionCache(key, value) {
+    try {
+      sessionStorage.setItem(key, JSON.stringify({ value, savedAt: Date.now() }));
+    } catch (e) { /* storage full or unavailable - just skip caching this time */ }
+  }
+
   function normalizeKey(k) { return k.toLowerCase().replace(/[^a-z0-9]/g, ""); }
 
   function getField(fields, aliasKey) {
@@ -519,19 +688,23 @@
   }
 
   function parseMaybeJsonArray(value) {
-    if (Array.isArray(value)) return value.filter(Boolean);
+    // Every path trims each element - inconsistent trailing/leading whitespace on individual
+    // choice values (varies per item, likely from how they were originally entered) was
+    // otherwise producing "duplicate" entries in filter dropdowns that look identical but
+    // aren't the same string, since only the delimiter-split fallback used to trim.
+    if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
     if (value == null || value === "") return [];
     if (typeof value === "string") {
       const trimmed = value.trim();
       if (trimmed.startsWith("[")) {
         try {
           const parsed = JSON.parse(trimmed);
-          return Array.isArray(parsed) ? parsed.filter(Boolean) : [trimmed];
+          return Array.isArray(parsed) ? parsed.map((v) => String(v).trim()).filter(Boolean) : [trimmed];
         } catch (e) { /* fall through to delimiter split */ }
       }
       return trimmed.split(/[;,]/).map((s) => s.trim()).filter(Boolean);
     }
-    return [String(value)];
+    return [String(value).trim()].filter(Boolean);
   }
 
   // Plain text columns can come back as SharePoint Person/Group objects if a column
@@ -576,10 +749,45 @@
     return na === nb || na.includes(nb) || nb.includes(na);
   }
 
-  function chipCell(items) {
+  // Specific colors for the known greeting-card occasions. Matched by keyword rather than
+  // exact string so minor variations in how the choice is worded in SharePoint (e.g. "Hari
+  // Raya" vs "Hari Raya Aidilfitri") still land on the right color.
+  const GREETING_COLOR_RULES = [
+    { test: /chinese/i, bg: "rgba(224,86,43,0.16)", fg: "#c9491e" }, // red-orange
+    { test: /deepavali|diwali/i, bg: "rgba(74,58,167,0.14)", fg: "#4a3aa7" }, // purple
+    { test: /hari\s*raya|aidilfitri/i, bg: "var(--green-wash)", fg: "var(--green)" }, // green
+    { test: /season'?s?\s*greetings|christmas/i, bg: "rgba(42,120,214,0.14)", fg: "#2a78d6" }, // blue
+  ];
+
+  // Anything not matching a known occasion above (a new choice added later, or "(Blank)")
+  // still gets a color - picked deterministically by hashing the text, so the same label
+  // always lands on the same fallback color instead of looking uncategorized.
+  const CHIP_FALLBACK_PALETTE = [
+    { bg: "var(--red-wash)", fg: "var(--red)" },
+    { bg: "var(--amber-wash)", fg: "var(--amber)" },
+    { bg: "var(--green-wash)", fg: "var(--green)" },
+    { bg: "rgba(74,58,167,0.14)", fg: "#4a3aa7" },
+    { bg: "rgba(42,120,214,0.14)", fg: "#2a78d6" },
+    { bg: "rgba(232,123,164,0.18)", fg: "#c24a7c" },
+  ];
+
+  function hashString(s) {
+    let hash = 0;
+    for (let i = 0; i < s.length; i++) hash = (hash * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(hash);
+  }
+
+  function greetingChipColor(label) {
+    const rule = GREETING_COLOR_RULES.find((r) => r.test.test(label || ""));
+    if (rule) return rule;
+    return CHIP_FALLBACK_PALETTE[hashString(label || "") % CHIP_FALLBACK_PALETTE.length];
+  }
+
+  function chipCell(items, colorFn) {
     if (!items || !items.length) return `<span class="muted-cell">-</span>`;
     const [first, ...rest] = items;
-    return `<span class="chip neutral">${escapeHtml(first)}</span>${rest.length ? `<span class="chip-extra">+${rest.length}</span>` : ""}`;
+    const style = colorFn ? ` style="background:${colorFn(first).bg};color:${colorFn(first).fg};"` : "";
+    return `<span class="chip"${colorFn ? "" : " neutral"}${style}>${escapeHtml(first)}</span>${rest.length ? `<span class="chip-extra">+${rest.length}</span>` : ""}`;
   }
 
   function escapeHtml(s) {
@@ -592,6 +800,14 @@
     var first = parts[0] ? parts[0][0] : "";
     var last = parts.length > 1 ? parts[parts.length - 1][0] : "";
     return (first + last).toUpperCase() || "--";
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const datePart = d.toLocaleDateString();
+    const timePart = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    return `${datePart} ${timePart}`;
   }
 
   // ---------- MSAL / Graph ----------
@@ -623,8 +839,15 @@
       const res = await msalInstance.ssoSilent({ scopes: CONFIG.graphScopes });
       activeAccount = res.account;
     } catch (silentErr) {
-      const res = await msalInstance.loginPopup({ scopes: CONFIG.graphScopes });
-      activeAccount = res.account;
+      // No popup: if there's truly no ambient session to pick up silently, the whole page
+      // navigates to Microsoft sign-in and back, rather than opening a popup window. This is
+      // also just plain more reliable than a popup when the page is loaded inside an iframe
+      // (as it sometimes is here, embedded in SharePoint's own page chrome) - a popup can be
+      // blocked in that context, and login.microsoftonline.com refuses to load inside an
+      // iframe at all, so redirecting the top-level page is the option that actually works.
+      console.warn("[Contacts] Silent sign-in failed, redirecting to Microsoft sign-in (no popup):", silentErr);
+      await msalInstance.loginRedirect({ scopes: CONFIG.graphScopes });
+      return; // the page is navigating away - nothing after this point will run
     }
     msalInstance.setActiveAccount(activeAccount);
   }
@@ -635,8 +858,11 @@
       const res = await msalInstance.acquireTokenSilent(request);
       return res.accessToken;
     } catch (e) {
-      const res = await msalInstance.acquireTokenPopup(request);
-      return res.accessToken;
+      // Same no-popup reasoning as ensureSignedIn: this navigates the whole page away and
+      // back rather than opening a popup. In practice this should be rare - it only happens
+      // if a token silently expired in a way acquireTokenSilent can't refresh on its own.
+      await msalInstance.acquireTokenRedirect(request);
+      return null; // unreachable in practice - the page is navigating away
     }
   }
 
@@ -648,8 +874,22 @@
       const res = await msalInstance.acquireTokenSilent(request);
       return res.accessToken;
     } catch (e) {
-      const res = await msalInstance.acquireTokenPopup(request);
+      await msalInstance.acquireTokenRedirect(request);
+      return null; // unreachable in practice - the page is navigating away
+    }
+  }
+
+  // A token for the Azure Cognitive Services resource (what Azure OpenAI is built on) -
+  // a third, separate token audience from Graph and SharePoint above. Used only by the
+  // Copilot chat.
+  async function getAzureOpenAIToken() {
+    const request = { scopes: CONFIG.azureOpenAI.scopes, account: activeAccount };
+    try {
+      const res = await msalInstance.acquireTokenSilent(request);
       return res.accessToken;
+    } catch (e) {
+      await msalInstance.acquireTokenRedirect(request);
+      return null; // unreachable in practice - the page is navigating away
     }
   }
 
@@ -716,7 +956,12 @@
       alumniForeign: asPlainText(getField(f, "alumniForeign")),
       lawyers: lawyerPeople.map((p) => p.displayName).filter(Boolean),
       lawyerEmails: lawyerPeople.map((p) => p.email).filter(Boolean),
-      createdByEmailText: asPlainText(getField(f, "createdByEmailText")),
+      // item.createdBy is Graph's own resolved item metadata (who actually created the list
+      // item), not a custom column - unlike Lawyers/Partner In Charge it's always properly
+      // resolved with no Person/Group-field limitations, so it's used instead of the old
+      // CreatedByEmailText text column.
+      createdBy: (item.createdBy && item.createdBy.user && item.createdBy.user.displayName) || "",
+      createdByEmail: (item.createdBy && item.createdBy.user && item.createdBy.user.email) || "",
       contactOwner: asPlainText(getField(f, "contactOwner")),
       created: item.createdDateTime || "",
       modified: item.lastModifiedDateTime || "",
@@ -802,16 +1047,24 @@
       .join(",");
     const preciseUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?expand=fields(select=${selectNames})&$top=200`;
     const fallbackUrl = `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items?expand=fields&$top=200`;
-    let items;
-    try {
-      items = await graphGetAllPages(preciseUrl);
-    } catch (e) {
-      console.warn(
-        "[Contacts] Explicit field selection failed (a guessed internal column name in FIELD_ALIASES is likely wrong) - falling back to the default field expansion. Person/Group columns like Lawyers may come back empty under this fallback.",
-        e
-      );
-      items = await graphGetAllPages(fallbackUrl);
-    }
+
+    // The Graph items fetch and the SharePoint REST person-columns fetch each independently
+    // read the whole list - they don't depend on each other's results, only get merged
+    // together at the end, so they run concurrently instead of one after the other. This
+    // roughly halves the time this function takes on a list with many contacts.
+    const itemsPromise = (async () => {
+      try {
+        return await graphGetAllPages(preciseUrl);
+      } catch (e) {
+        console.warn(
+          "[Contacts] Explicit field selection failed (a guessed internal column name in FIELD_ALIASES is likely wrong) - falling back to the default field expansion. Person/Group columns like Lawyers may come back empty under this fallback.",
+          e
+        );
+        return graphGetAllPages(fallbackUrl);
+      }
+    })();
+
+    const [items, personResult] = await Promise.all([itemsPromise, fetchPersonColumnsViaSharePointRest()]);
     const contacts = items.map(mapItemToContact);
 
     // Best-effort supplementary lookup - see fetchPersonColumnsViaSharePointRest. Note this
@@ -820,7 +1073,7 @@
     // succeeds - that data is added here, not to c.raw, which is why it's echoed into a
     // clearly-labeled extra debug key instead (including the exact failure reason, if any),
     // so the panel reflects the full picture without needing the browser console open.
-    const { people: personColumns, error: personColumnsError } = await fetchPersonColumnsViaSharePointRest();
+    const { people: personColumns, error: personColumnsError } = personResult;
     contacts.forEach((c) => {
       const extra = personColumns.get(String(c.id));
       c.raw = {
@@ -850,11 +1103,38 @@
   // column's original internal name forever even after its display name is changed later -
   // "Lawyers" being the export header does not guarantee "Lawyers" is the internal name, and
   // in this list it turned out not to be.
+  const SCHEMA_CACHE_KEY = "crmSchemaCache:v1";
+  const SCHEMA_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
+
   async function fetchListSchema() {
+    const cached = getSessionCache(SCHEMA_CACHE_KEY, SCHEMA_CACHE_MAX_AGE_MS);
+    if (cached) {
+      choiceOptions = cached.choiceOptions;
+      personColumnNames = cached.personColumnNames;
+      personColumnMultiValue = cached.personColumnMultiValue;
+      resolvedFieldNames = cached.resolvedFieldNames;
+      console.log("[Contacts] Using cached list schema (under 10 minutes old) - skipped the columns fetch.");
+      return;
+    }
     try {
       const { siteId, listId } = await resolveSiteAndListIds();
-      const data = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns?$select=name,choice,personOrGroup`);
+      const data = await graphGet(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/columns?$select=name,displayName,choice,personOrGroup,text,boolean,dateTime,number`);
       const columns = data.value || [];
+
+      // Internal name can drift from what a column is actually labeled in SharePoint (a
+      // rename keeps the old internal name forever), so this is logged in full rather than
+      // just the matched result - if the alias/name matching below ever gets it wrong again,
+      // this table shows exactly what's really on the list to fix it from.
+      console.log(
+        "[Contacts] Full column schema (internal name -> display name, type):",
+        columns.map((col) => ({
+          name: col.name,
+          displayName: col.displayName,
+          type: col.personOrGroup
+            ? `personOrGroup${col.personOrGroup.allowMultipleSelection ? " (multi)" : " (single)"}`
+            : col.choice ? "choice" : col.text ? "text" : col.number ? "number" : col.boolean ? "boolean" : col.dateTime ? "dateTime" : "other",
+        }))
+      );
 
       const byNormalizedName = {};
       columns.forEach((col) => {
@@ -878,21 +1158,59 @@
         alumniForeign: lookupChoice("alumniForeign"),
       };
 
-      const personColumnCandidates = columns.filter((col) => col.personOrGroup).map((col) => col.name);
-      console.log("[Contacts] Person/Group columns detected on the SharePoint list:", personColumnCandidates);
-      const matchAlias = (aliasKey) => {
+      const personColumns = columns.filter((col) => col.personOrGroup);
+      // Matches by internal name first (the guesses in FIELD_ALIASES), then falls back to
+      // matching by the column's current display name - catches a column that was renamed
+      // in SharePoint after creation, where the internal name no longer resembles either.
+      // Returns the whole column (not just its name) so the caller can also read its actual
+      // allowMultipleSelection flag rather than assuming single vs. multi.
+      const matchAliasColumn = (aliasKey, displayNameGuesses) => {
         const candidates = FIELD_ALIASES[aliasKey] || [aliasKey];
-        return personColumnCandidates.find((name) => candidates.some((c) => normalizeKey(c) === normalizeKey(name)));
+        const byInternal = personColumns.find((col) => candidates.some((c) => normalizeKey(c) === normalizeKey(col.name)));
+        if (byInternal) return byInternal;
+        return personColumns.find((col) => displayNameGuesses.some((d) => normalizeKey(d) === normalizeKey(col.displayName))) || null;
       };
-      personColumnNames.partnerInCharge = matchAlias("partnerInCharge") || null;
-      personColumnNames.lawyers = matchAlias("lawyers") || null;
-      // If a name couldn't be matched by alias but exactly one Person/Group column is still
-      // unclaimed, it's almost certainly the missing one (this list only has two such columns).
-      const claimed = [personColumnNames.partnerInCharge, personColumnNames.lawyers].filter(Boolean);
-      const unclaimed = personColumnCandidates.filter((name) => !claimed.includes(name));
-      if (!personColumnNames.partnerInCharge && unclaimed.length === 1) personColumnNames.partnerInCharge = unclaimed[0];
-      else if (!personColumnNames.lawyers && unclaimed.length === 1) personColumnNames.lawyers = unclaimed[0];
-      console.log("[Contacts] Resolved Person/Group field names:", personColumnNames);
+      const partnerCol = matchAliasColumn("partnerInCharge", ["Partner In Charge", "PartnerInCharge"]);
+      const lawyerCol = matchAliasColumn("lawyers", ["Lawyers", "Lawyer In Charge", "Lawyer"]);
+      personColumnNames.partnerInCharge = partnerCol ? partnerCol.name : null;
+      personColumnNames.lawyers = lawyerCol ? lawyerCol.name : null;
+      personColumnMultiValue.partnerInCharge = !!(partnerCol && partnerCol.personOrGroup && partnerCol.personOrGroup.allowMultipleSelection);
+      personColumnMultiValue.lawyers = !!(lawyerCol && lawyerCol.personOrGroup && lawyerCol.personOrGroup.allowMultipleSelection);
+      console.log("[Contacts] Resolved Person/Group field names:", personColumnNames, "multi-value:", personColumnMultiValue);
+      if (!personColumnNames.lawyers) {
+        console.warn(
+          "[Contacts] No column matched \"Lawyers\" by internal name or display name. Full Person/Group column list is logged above - if one of those is really meant to be Lawyers under a different label, tell me its displayName and I'll wire it in directly instead of guessing."
+        );
+      }
+
+      // Same internal-name-then-display-name resolution, but for every known field, not just
+      // the two Person/Group ones - this is what writeKey() actually uses, so every Add/Edit
+      // save targets a verified column instead of an unverified FIELD_ALIASES guess.
+      resolvedFieldNames = {};
+      const unresolved = [];
+      Object.keys(FIELD_ALIASES).forEach((aliasKey) => {
+        const candidates = FIELD_ALIASES[aliasKey];
+        const byInternal = columns.find((col) => candidates.some((c) => normalizeKey(c) === normalizeKey(col.name)));
+        if (byInternal) {
+          resolvedFieldNames[aliasKey] = byInternal.name;
+          return;
+        }
+        const guesses = DISPLAY_NAME_GUESSES[aliasKey] || [];
+        const byDisplay = columns.find((col) => guesses.some((d) => normalizeKey(d) === normalizeKey(col.displayName)));
+        if (byDisplay) {
+          resolvedFieldNames[aliasKey] = byDisplay.name;
+          return;
+        }
+        resolvedFieldNames[aliasKey] = candidates[0];
+        unresolved.push(aliasKey);
+      });
+      console.log("[Contacts] Resolved write target for every field:", resolvedFieldNames);
+      if (unresolved.length) {
+        console.warn(
+          `[Contacts] Could not verify these fields against the list schema, so they're still using an unverified guess and may fail to save: ${unresolved.join(", ")}. Check the full column schema logged above for their real names.`
+        );
+      }
+      setSessionCache(SCHEMA_CACHE_KEY, { choiceOptions, personColumnNames, personColumnMultiValue, resolvedFieldNames });
     } catch (e) {
       console.warn(
         "[Contacts] Could not read the SharePoint list's column schema - dropdown choices will be empty, and Lawyers/Partner In Charge reads and writes will fail.",
@@ -904,7 +1222,13 @@
   // Lists every person in a group, flattening nested/sub-groups (transitiveMembers), for the
   // Partner In Charge and Lawyers people-pickers in the Add/Edit form. Requires the
   // GroupMember.Read.All delegated Graph permission, admin-consented.
+  const GROUP_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
+
   async function fetchGroupMembers(groupId) {
+    const cacheKey = `crmGroupMembers:${groupId}`;
+    const cached = getSessionCache(cacheKey, GROUP_CACHE_MAX_AGE_MS);
+    if (cached) return cached;
+
     const people = [];
     try {
       let url = `https://graph.microsoft.com/v1.0/groups/${groupId}/transitiveMembers?$select=id,displayName,mail,userPrincipalName`;
@@ -924,7 +1248,21 @@
       );
     }
     people.sort((a, b) => a.displayName.localeCompare(b.displayName));
+    if (people.length) setSessionCache(cacheKey, people);
     return people;
+  }
+
+  // Manually injected people-picker entries, for testing accounts that aren't (or can't yet
+  // be) added to the actual AD security groups. Add more emails here as needed.
+  const MANUAL_PERSON_OPTIONS = ["la.test@skrine.com"];
+
+  function addManualPersonOptions(list) {
+    MANUAL_PERSON_OPTIONS.forEach((email) => {
+      if (!list.some((p) => (p.mail || "").toLowerCase() === email.toLowerCase())) {
+        list.push({ id: null, displayName: email, mail: email });
+      }
+    });
+    list.sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
 
   // Reads the "groups" claim off the signed-in account's ID token (populated by the
@@ -958,8 +1296,8 @@
       return ne === normalizeEmail(user.mail) || ne === normalizeEmail(user.userPrincipalName);
     });
     const byLawyerName = contact.lawyers.some((l) => nameMatches(l, user.displayName));
-    const ownerEmail = normalizeEmail(contact.createdByEmailText);
-    const byCreatedBy = !!ownerEmail && (ownerEmail === normalizeEmail(user.mail) || ownerEmail === normalizeEmail(user.userPrincipalName));
+    const createdByEmail = normalizeEmail(contact.createdByEmail);
+    const byCreatedBy = !!createdByEmail && (createdByEmail === normalizeEmail(user.mail) || createdByEmail === normalizeEmail(user.userPrincipalName));
     return byLawyerEmail || byLawyerName || byCreatedBy;
   }
 
@@ -969,6 +1307,39 @@
     stopLoadingMessageLoop();
     document.getElementById("loading-state").classList.add("hidden");
     document.getElementById("app-content").classList.remove("hidden");
+  }
+
+  // The full-screen "loading-state" overlay (spinner + rotating status text) is reserved for
+  // the one moment it's actually needed: initial sign-in and first data load, when there's
+  // nothing on screen yet anyway. Everything after that - the Refresh button, and re-syncing
+  // after a save - uses this instead: a thin sweep across the existing top accent bar, so the
+  // current view (and the user's place in it) never disappears for a background data refresh.
+  function showTopProgress() {
+    document.getElementById("top-accent").classList.add("loading");
+    const btn = document.getElementById("refresh-contacts");
+    if (btn) { btn.disabled = true; btn.classList.add("spinning"); }
+  }
+  function hideTopProgress() {
+    document.getElementById("top-accent").classList.remove("loading");
+    const btn = document.getElementById("refresh-contacts");
+    if (btn) { btn.disabled = false; btn.classList.remove("spinning"); }
+  }
+
+  let backgroundRefreshInFlight = false;
+
+  async function refreshContactsInBackground() {
+    if (backgroundRefreshInFlight) return;
+    backgroundRefreshInFlight = true;
+    showTopProgress();
+    try {
+      allContacts = await fetchContacts();
+      renderAll();
+    } catch (e) {
+      console.warn("[Contacts] Background refresh failed - the view keeps showing its current data until the next successful refresh.", e);
+    } finally {
+      backgroundRefreshInFlight = false;
+      hideTopProgress();
+    }
   }
 
   function startLoadingMessageLoop() {
@@ -1001,10 +1372,10 @@
       <button class="btn primary" id="manual-signin">Sign in with Microsoft</button>`;
     document.getElementById("manual-signin").onclick = async () => {
       try {
-        const res = await msalInstance.loginPopup({ scopes: CONFIG.graphScopes });
-        activeAccount = res.account;
-        msalInstance.setActiveAccount(activeAccount);
-        await bootstrapData();
+        // No popup - navigates the whole page to Microsoft sign-in and back. On return,
+        // main() runs again from the top and ensureSignedIn() picks up the result via
+        // handleRedirectPromise(), so nothing further is needed here.
+        await msalInstance.loginRedirect({ scopes: CONFIG.graphScopes });
       } catch (e2) { showError("Sign-in failed.", e2); }
     };
     console.warn("Silent sign-in failed, manual sign-in required:", err);
@@ -1026,7 +1397,8 @@
       return items.length ? items : ["(Blank)"];
     }
     const v = col.get(contact);
-    return [v && String(v).trim() ? String(v) : "(Blank)"];
+    const trimmed = v == null ? "" : String(v).trim();
+    return [trimmed || "(Blank)"];
   }
 
   function getUniqueValuesForColumn(col) {
@@ -1045,11 +1417,23 @@
     }
 
     Object.keys(columnFilterValues).forEach((key) => {
-      const allowed = columnFilterValues[key];
-      if (!allowed || !allowed.size) return;
+      const filter = columnFilterValues[key];
+      if (!filter) return;
       const col = COLUMNS.find((c) => c.key === key);
       if (!col) return;
-      rows = rows.filter((c) => columnValues(col, c).some((v) => allowed.has(v)));
+      if (col.filterType === "range") {
+        if (filter.min == null && filter.max == null) return;
+        rows = rows.filter((c) => {
+          const num = parseFloat(col.get(c));
+          if (isNaN(num)) return false;
+          if (filter.min != null && num < filter.min) return false;
+          if (filter.max != null && num > filter.max) return false;
+          return true;
+        });
+        return;
+      }
+      if (!filter.size) return;
+      rows = rows.filter((c) => columnValues(col, c).some((v) => filter.has(v)));
     });
 
     return rows;
@@ -1085,6 +1469,8 @@
     document.getElementById("stat-companies").textContent = new Set(scope.map((c) => c.companyName).filter(Boolean)).size;
     document.getElementById("stat-countries").textContent = new Set(scope.map((c) => c.country).filter(Boolean)).size;
     document.getElementById("stat-cards").textContent = scope.filter((c) => c.greetingCards.length > 0).length;
+    document.getElementById("stat-practice-areas").textContent = new Set(scope.flatMap((c) => c.practiceArea).filter(Boolean)).size;
+    document.getElementById("stat-alumni").textContent = scope.filter((c) => c.alumniForeign).length;
   }
 
   function renderList() {
@@ -1113,7 +1499,7 @@
       .map((c) => `
         <tr data-id="${escapeHtml(c.id)}">
           ${COLUMNS.map((col) => {
-            if (col.chip) return `<td>${chipCell(col.chip(c))}</td>`;
+            if (col.chip) return `<td>${chipCell(col.chip(c), col.chipColor)}</td>`;
             const cls = col.cellClass ? ` class="${col.cellClass}"` : "";
             return `<td${cls}>${escapeHtml(col.get(c)) || "-"}</td>`;
           }).join("")}
@@ -1189,40 +1575,68 @@
     updateFilterButtonStates();
   }
 
+  function isColumnFilterActive(col) {
+    const filter = columnFilterValues[col.key];
+    if (!filter) return false;
+    if (col.filterType === "range") return filter.min != null || filter.max != null;
+    return filter.size > 0;
+  }
+
   function updateFilterButtonStates() {
     document.querySelectorAll(".th-filter-btn").forEach((btn) => {
       const col = COLUMNS[Number(btn.dataset.colIndex)];
-      btn.classList.toggle("active", !!columnFilterValues[col.key]);
+      btn.classList.toggle("active", isColumnFilterActive(col));
     });
   }
 
   function openColumnMenu(col, anchorEl) {
     const menu = document.getElementById("col-menu");
     const [ascLabel, descLabel] = sortLabelsFor(col);
-    const values = getUniqueValuesForColumn(col);
-    const selected = columnFilterValues[col.key];
+    const isRange = col.filterType === "range";
+    const currentFilter = columnFilterValues[col.key];
 
-    menu.innerHTML = `
+    const sortButtons = `
       <button type="button" class="col-menu-item" data-action="sort-asc"><i class="fa-solid fa-arrow-up-short-wide" aria-hidden="true"></i>${escapeHtml(ascLabel)}</button>
       <button type="button" class="col-menu-item" data-action="sort-desc"><i class="fa-solid fa-arrow-down-wide-short" aria-hidden="true"></i>${escapeHtml(descLabel)}</button>
       <div class="col-menu-divider"></div>
-      <div class="col-menu-label">Filter by ${escapeHtml(col.label)}</div>
-      <input type="text" class="col-menu-search" placeholder="Search values" />
-      <label class="col-menu-value col-menu-selectall">
-        <input type="checkbox" data-select-all ${selected ? "" : "checked"} />
-        <span>Select all</span>
-      </label>
-      <div class="col-menu-values">
-        ${values.map((v) => `
-          <label class="col-menu-value">
-            <input type="checkbox" data-value="${escapeHtml(v)}" ${!selected || selected.has(v) ? "checked" : ""} />
-            <span>${escapeHtml(v)}</span>
-          </label>`).join("")}
-      </div>
-      <div class="col-menu-footer">
-        <button type="button" class="btn" data-action="clear">Clear filter</button>
-        <button type="button" class="btn primary" data-action="apply">OK</button>
-      </div>`;
+      <div class="col-menu-label">Filter by ${escapeHtml(col.label)}</div>`;
+
+    let values = [];
+    if (isRange) {
+      const min = currentFilter && currentFilter.min != null ? currentFilter.min : "";
+      const max = currentFilter && currentFilter.max != null ? currentFilter.max : "";
+      menu.innerHTML = `
+        ${sortButtons}
+        <div class="col-menu-range">
+          <label>Min<input type="number" class="col-menu-range-input" data-bound="min" value="${escapeHtml(String(min))}" /></label>
+          <label>Max<input type="number" class="col-menu-range-input" data-bound="max" value="${escapeHtml(String(max))}" /></label>
+        </div>
+        <div class="col-menu-footer">
+          <button type="button" class="btn" data-action="clear">Clear filter</button>
+          <button type="button" class="btn primary" data-action="apply">OK</button>
+        </div>`;
+    } else {
+      values = getUniqueValuesForColumn(col);
+      const selected = currentFilter;
+      menu.innerHTML = `
+        ${sortButtons}
+        <input type="text" class="col-menu-search" placeholder="Search values" />
+        <label class="col-menu-value col-menu-selectall">
+          <input type="checkbox" data-select-all ${selected ? "" : "checked"} />
+          <span>Select all</span>
+        </label>
+        <div class="col-menu-values">
+          ${values.map((v) => `
+            <label class="col-menu-value">
+              <input type="checkbox" data-value="${escapeHtml(v)}" ${!selected || selected.has(v) ? "checked" : ""} />
+              <span>${escapeHtml(v)}</span>
+            </label>`).join("")}
+        </div>
+        <div class="col-menu-footer">
+          <button type="button" class="btn" data-action="clear">Clear filter</button>
+          <button type="button" class="btn primary" data-action="apply">OK</button>
+        </div>`;
+    }
 
     const rect = anchorEl.getBoundingClientRect();
     menu.classList.remove("hidden");
@@ -1232,15 +1646,6 @@
     openMenuKey = col.key;
     updateFilterButtonStates();
 
-    menu.querySelector("[data-select-all]").addEventListener("change", (e) => {
-      menu.querySelectorAll(".col-menu-values input[type=checkbox]").forEach((cb) => { cb.checked = e.target.checked; });
-    });
-    menu.querySelector(".col-menu-search").addEventListener("input", (e) => {
-      const term = e.target.value.toLowerCase();
-      menu.querySelectorAll(".col-menu-values .col-menu-value").forEach((label) => {
-        label.style.display = label.textContent.toLowerCase().includes(term) ? "" : "none";
-      });
-    });
     menu.querySelector('[data-action="sort-asc"]').addEventListener("click", () => {
       sortColumn = col.key;
       sortDirection = "asc";
@@ -1258,6 +1663,34 @@
       closeColumnMenu();
       currentPage = 1;
       renderAll();
+    });
+
+    if (isRange) {
+      menu.querySelector('[data-action="apply"]').addEventListener("click", () => {
+        const minRaw = menu.querySelector('[data-bound="min"]').value;
+        const maxRaw = menu.querySelector('[data-bound="max"]').value;
+        const min = minRaw === "" ? null : parseFloat(minRaw);
+        const max = maxRaw === "" ? null : parseFloat(maxRaw);
+        if (min == null && max == null) {
+          delete columnFilterValues[col.key];
+        } else {
+          columnFilterValues[col.key] = { min, max };
+        }
+        closeColumnMenu();
+        currentPage = 1;
+        renderAll();
+      });
+      return;
+    }
+
+    menu.querySelector("[data-select-all]").addEventListener("change", (e) => {
+      menu.querySelectorAll(".col-menu-values input[type=checkbox]").forEach((cb) => { cb.checked = e.target.checked; });
+    });
+    menu.querySelector(".col-menu-search").addEventListener("input", (e) => {
+      const term = e.target.value.toLowerCase();
+      menu.querySelectorAll(".col-menu-values .col-menu-value").forEach((label) => {
+        label.style.display = label.textContent.toLowerCase().includes(term) ? "" : "none";
+      });
     });
     menu.querySelector('[data-action="apply"]').addEventListener("click", () => {
       const checked = [...menu.querySelectorAll(".col-menu-values input[type=checkbox]:checked")].map((cb) => cb.dataset.value);
@@ -1299,44 +1732,32 @@
 
   // ---------- write (Add / Edit) ----------
 
-  // The internal SharePoint column name to write to for a given form field - the first
-  // candidate in FIELD_ALIASES is treated as the canonical name (same one most likely to
-  // exist if the list was created by Power Platform, matching the CSV export headers).
+  // The internal SharePoint column name to write to for a given form field - prefers the
+  // name resolved from the live list schema (see fetchListSchema), falling back to the
+  // first FIELD_ALIASES guess only if the schema scan hasn't run yet or found no match.
   function writeKey(aliasKey) {
-    return FIELD_ALIASES[aliasKey][0];
+    return resolvedFieldNames[aliasKey] || FIELD_ALIASES[aliasKey][0];
   }
 
-  async function graphSend(url, method, body) {
-    const token = await getGraphToken();
-    const res = await fetch(url, {
-      method,
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      if (res.status === 403) {
-        throw new Error("Permission denied by Microsoft Graph (403). The app registration needs the Sites.ReadWrite.All delegated permission, admin-consented, to save changes.");
-      }
-      throw new Error(`Graph request failed (${res.status}): ${text}`);
-    }
-    return res.status === 204 ? null : res.json();
-  }
-
+  // Optional fields are omitted entirely when blank rather than sent as "" or [] - Graph can
+  // reject an empty string against a Choice column outright (a 400 "Invalid request" with no
+  // useful detail) instead of treating it as "no value", so leaving the key out avoids
+  // asserting a value for those columns at all.
   function formValuesToFields(values) {
-    return {
-      [writeKey("salutation")]: values.salutation || "",
+    const fields = {
       [writeKey("firstName")]: values.firstName || "",
       [writeKey("lastName")]: values.lastName || "",
       [writeKey("email")]: values.email || "",
       [writeKey("companyName")]: values.companyName || "",
-      [writeKey("position")]: values.position || "",
-      [writeKey("phoneNumber")]: values.phoneNumber || "",
       [writeKey("country")]: values.country || "",
-      [writeKey("practiceArea")]: values.practiceArea || [],
-      [writeKey("greetingCards")]: values.greetingCards || [],
-      [writeKey("alumniForeign")]: values.alumniForeign || "",
     };
+    if (values.salutation) fields[writeKey("salutation")] = values.salutation;
+    if (values.position) fields[writeKey("position")] = values.position;
+    if (values.phoneNumber) fields[writeKey("phoneNumber")] = values.phoneNumber;
+    if (values.practiceArea && values.practiceArea.length) fields[writeKey("practiceArea")] = values.practiceArea;
+    if (values.greetingCards && values.greetingCards.length) fields[writeKey("greetingCards")] = values.greetingCards;
+    if (values.alumniForeign) fields[writeKey("alumniForeign")] = values.alumniForeign;
+    return fields;
   }
 
   // Resolves an email/UPN to a SharePoint site user ID via the classic "ensure user" REST
@@ -1377,61 +1798,91 @@
     return listEntityTypeName;
   }
 
-  // Sets Partner In Charge / Lawyers on a list item via SharePoint REST (Graph can't write
-  // Person/Group fields reliably either, same limitation as reading them). Resolves every
-  // selected person to a SharePoint user ID first, then MERGEs just those two fields.
-  async function savePersonFieldsViaSharePointRest(itemId, { partnerInChargeEmail, lawyerEmails }) {
-    const [partnerInChargeId, lawyerIds, entityType] = await Promise.all([
-      partnerInChargeEmail ? ensureSharePointUserId(partnerInChargeEmail) : Promise.resolve(null),
-      Promise.all((lawyerEmails || []).map((email) => ensureSharePointUserId(email))),
-      getListEntityTypeName(),
+  // Builds the full SharePoint REST item payload - simple fields plus the Partner In Charge /
+  // Lawyers Person fields - shared by create and update. Both go through SharePoint REST
+  // entirely rather than Graph: Graph's write path turned out to be just as unreliable for
+  // this list as its read path was for Person/Group fields (same generic "invalidRequest"
+  // 400 on PATCH as on POST), so REST is used consistently instead of splitting writes
+  // between the two APIs.
+  async function buildSharePointItemBody(values) {
+    const entityType = await getListEntityTypeName();
+    const [partnerInChargeId, lawyerIds] = await Promise.all([
+      values.partnerInCharge ? ensureSharePointUserId(values.partnerInCharge) : Promise.resolve(null),
+      Promise.all((values.lawyers || []).map((email) => ensureSharePointUserId(email))),
     ]);
 
+    const graphFields = formValuesToFields(values);
     const body = { __metadata: { type: entityType } };
-    if (partnerInChargeId != null && personColumnNames.partnerInCharge) body[`${personColumnNames.partnerInCharge}Id`] = partnerInChargeId;
+    // The classic SharePoint REST API (unlike Graph) wraps multi-value fields - Choice or
+    // Person/Group alike - in a {results: [...]} envelope rather than a plain array.
+    Object.keys(graphFields).forEach((key) => {
+      const val = graphFields[key];
+      body[key] = Array.isArray(val) ? { results: val } : val;
+    });
+    if (partnerInChargeId != null && personColumnNames.partnerInCharge) {
+      body[`${personColumnNames.partnerInCharge}Id`] = personColumnMultiValue.partnerInCharge
+        ? { results: [partnerInChargeId] }
+        : partnerInChargeId;
+    }
     const cleanLawyerIds = lawyerIds.filter((id) => id != null);
-    if (cleanLawyerIds.length && personColumnNames.lawyers) body[`${personColumnNames.lawyers}Id`] = { results: cleanLawyerIds };
+    if (personColumnNames.lawyers) {
+      body[`${personColumnNames.lawyers}Id`] = personColumnMultiValue.lawyers ? { results: cleanLawyerIds } : cleanLawyerIds[0];
+    }
+    return body;
+  }
 
+  async function postSharePointItem(url, body, extraHeaders, actionLabel) {
     const token = await getSharePointToken();
-    const listTitle = encodeURIComponent(CONFIG.listDisplayName);
-    const res = await fetch(`${CONFIG.sharePointResource}${CONFIG.sitePath}/_api/web/lists/getbytitle('${listTitle}')/items(${itemId})`, {
+    const res = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json;odata=verbose",
         Accept: "application/json;odata=verbose",
-        "X-HTTP-Method": "MERGE",
-        "IF-MATCH": "*",
+        ...extraHeaders,
       },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      throw new Error(`Could not save Partner In Charge / Lawyers (${res.status}): ${await res.text()}`);
+      const text = await res.text();
+      console.error(
+        `[Contacts] SharePoint REST ${actionLabel} failed:\n` +
+          `URL: POST ${url}\n` +
+          `Headers: ${JSON.stringify(extraHeaders)}\n` +
+          `Status: ${res.status}\n` +
+          `Request body:\n${JSON.stringify(body, null, 2)}\n` +
+          `Response:\n${text}`
+      );
+      if (res.status === 403) {
+        throw new Error("Permission denied by SharePoint (403). The SharePoint API's AllSites.Write delegated permission needs to be added and admin-consented in the app registration to save changes.");
+      }
+      throw new Error(`Could not ${actionLabel} contact (${res.status}): ${text}`);
     }
+    if (res.status === 204) return null;
+    const data = await res.json().catch(() => null);
+    return data && data.d ? data.d : data;
   }
 
+  // Every SharePoint list has a built-in "Title" column - even when it's hidden or
+  // repurposed in the list UI, it commonly stays required. Its internal name is always
+  // literally "Title" regardless of how it's displayed, so it's not part of FIELD_ALIASES.
+  // Both Person fields are required in this list, so create needs them set atomically in
+  // the same request that creates the item - a create request missing them gets rejected by
+  // SharePoint outright, no matter what the other fields contain.
   async function createContact(values) {
-    const { siteId, listId } = await resolveSiteAndListIds();
-    const created = await graphSend(`https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items`, "POST", {
-      fields: formValuesToFields(values),
-    });
-    await savePersonFieldsViaSharePointRest(created.id, {
-      partnerInChargeEmail: values.partnerInCharge,
-      lawyerEmails: values.lawyers,
-    });
+    const body = await buildSharePointItemBody(values);
+    body.Title = [values.firstName, values.lastName].filter(Boolean).join(" ") || values.companyName || "Contact";
+    const listTitle = encodeURIComponent(CONFIG.listDisplayName);
+    const url = `${CONFIG.sharePointResource}${CONFIG.sitePath}/_api/web/lists/getbytitle('${listTitle}')/items`;
+    const created = await postSharePointItem(url, body, {}, "create");
+    return created && created.Id != null ? String(created.Id) : null;
   }
 
   async function updateContact(itemId, values) {
-    const { siteId, listId } = await resolveSiteAndListIds();
-    await graphSend(
-      `https://graph.microsoft.com/v1.0/sites/${siteId}/lists/${listId}/items/${itemId}/fields`,
-      "PATCH",
-      formValuesToFields(values)
-    );
-    await savePersonFieldsViaSharePointRest(itemId, {
-      partnerInChargeEmail: values.partnerInCharge,
-      lawyerEmails: values.lawyers,
-    });
+    const body = await buildSharePointItemBody(values);
+    const listTitle = encodeURIComponent(CONFIG.listDisplayName);
+    const url = `${CONFIG.sharePointResource}${CONFIG.sitePath}/_api/web/lists/getbytitle('${listTitle}')/items(${itemId})`;
+    await postSharePointItem(url, body, { "X-HTTP-Method": "MERGE", "IF-MATCH": "*" }, "update");
   }
 
   // ---------- modal: view / add / edit ----------
@@ -1465,18 +1916,14 @@
         <dt>Partner</dt><dd>${escapeHtml(c.partner) || "-"}</dd>
         <dt>Partner In Charge</dt><dd>${escapeHtml(c.partnerInCharge) || "-"}</dd>
         <dt>Practice Area</dt><dd>${c.practiceArea.map((a) => `<span class="chip neutral">${escapeHtml(a)}</span>`).join("") || "-"}</dd>
-        <dt>Greeting Cards</dt><dd>${c.greetingCards.map((a) => `<span class="chip neutral">${escapeHtml(a)}</span>`).join("") || "-"}</dd>
+        <dt>Greeting Cards</dt><dd>${c.greetingCards.map((a) => { const col = greetingChipColor(a); return `<span class="chip" style="background:${col.bg};color:${col.fg};">${escapeHtml(a)}</span>`; }).join("") || "-"}</dd>
         <dt>Alumni / Foreign</dt><dd>${escapeHtml(c.alumniForeign) || "-"}</dd>
         <dt>Lawyers</dt><dd>${c.lawyers.map((a) => `<span class="chip neutral">${escapeHtml(a)}</span>`).join("") || "-"}</dd>
         <dt>Contact Owner</dt><dd>${escapeHtml(c.contactOwner) || "-"}</dd>
-        <dt>Created By (email)</dt><dd>${escapeHtml(c.createdByEmailText) || "-"}</dd>
+        <dt>Created By</dt><dd>${escapeHtml(c.createdBy) || "-"}</dd>
         <dt>Created</dt><dd>${c.created ? new Date(c.created).toLocaleString() : "-"}</dd>
         <dt>Modified</dt><dd>${c.modified ? new Date(c.modified).toLocaleString() : "-"}</dd>
       </dl>
-      <details class="raw">
-        <summary>Raw fields (debug)</summary>
-        <pre>${escapeHtml(JSON.stringify(c.raw, null, 2))}</pre>
-      </details>
       <div class="close-row">
         <button type="button" class="btn" id="modal-edit-btn">Edit</button>
         <button type="button" class="btn primary" id="modal-close-2">Close</button>
@@ -1489,6 +1936,48 @@
   function ciIncludes(list, value) {
     const lower = (value || "").toLowerCase();
     return (list || []).some((v) => (v || "").toLowerCase() === lower);
+  }
+
+  function personOptionDisplayName(options, email) {
+    const match = (options || []).find((p) => (p.mail || "").toLowerCase() === (email || "").toLowerCase());
+    return match ? match.displayName : email || "";
+  }
+
+  // Builds a contact object straight from the form's own values, without waiting on any
+  // server round trip - the save request already told us the values are valid, so there's no
+  // need to re-fetch just to know what to show. Used to update the table instantly on save;
+  // a background refresh (see refreshContactsInBackground) reconciles with the server after.
+  // For an edit, unset-in-the-form fields (Partner, Contact Owner, Created/Modified metadata,
+  // etc.) are carried over from the existing contact rather than blanked out.
+  function valuesToLocalContact(values, existingContact) {
+    const base = existingContact || {
+      id: null,
+      partner: "",
+      contactOwner: "",
+      createdBy: currentUser.displayName || "",
+      createdByEmail: currentUser.mail || currentUser.userPrincipalName || "",
+      created: new Date().toISOString(),
+      raw: {},
+    };
+    return {
+      ...base,
+      firstName: values.firstName,
+      lastName: values.lastName,
+      email: values.email,
+      companyName: values.companyName,
+      salutation: values.salutation,
+      position: values.position,
+      phoneNumber: values.phoneNumber,
+      country: values.country,
+      practiceArea: values.practiceArea,
+      greetingCards: values.greetingCards,
+      alumniForeign: values.alumniForeign,
+      partnerInCharge: personOptionDisplayName(partnerInChargeOptions, values.partnerInCharge),
+      partnerInChargeEmails: values.partnerInCharge ? [values.partnerInCharge] : [],
+      lawyers: values.lawyers.map((email) => personOptionDisplayName(lawyerOptions, email)),
+      lawyerEmails: values.lawyers,
+      modified: new Date().toISOString(),
+    };
   }
 
   // Wires up every dropdown-style checklist (Practice Areas, Greeting Cards, Lawyer In
@@ -1698,14 +2187,23 @@
       saveBtn.textContent = "Saving...";
       try {
         if (isNew) {
-          await createContact(values);
+          const newId = await createContact(values);
+          const localContact = valuesToLocalContact(values, null);
+          localContact.id = newId;
+          allContacts = [localContact, ...allContacts];
         } else {
           await updateContact(contact.id, values);
+          const localContact = valuesToLocalContact(values, contact);
+          allContacts = allContacts.map((c) => (c.id === contact.id ? localContact : c));
         }
+        // The table reflects the save immediately, from the values just submitted - no need
+        // to wait on a re-fetch (which was also masking a separate bug: SharePoint doesn't
+        // always make a write visible to an immediate read-back right away). A background
+        // refresh (thin top bar, not the full-screen loader) reconciles afterward.
         closeModal();
-        allContacts = await fetchContacts();
         currentPage = 1;
         renderAll();
+        refreshContactsInBackground();
       } catch (err) {
         errorBox.textContent = err.message;
         errorBox.classList.remove("hidden");
@@ -1737,18 +2235,9 @@
       updateFilterButtonStates();
       renderAll();
     });
-    document.getElementById("refresh-contacts").addEventListener("click", async () => {
+    document.getElementById("refresh-contacts").addEventListener("click", () => {
       sessionStorage.removeItem("crmSiteListIds:v1");
-      stopLoadingMessageLoop();
-      document.getElementById("loading-state").classList.remove("hidden");
-      document.getElementById("app-content").classList.add("hidden");
-      setLoadingText("Refreshing contacts...");
-      try {
-        allContacts = await fetchContacts();
-        currentPage = 1;
-        hideLoading();
-        renderAll();
-      } catch (e) { showError("Could not refresh contacts.", e); }
+      refreshContactsInBackground();
     });
     document.getElementById("page-prev").addEventListener("click", () => { currentPage--; renderList(); });
     document.getElementById("page-next").addEventListener("click", () => { currentPage++; renderList(); });
@@ -1774,32 +2263,235 @@
     });
   }
 
+  // ---------- Copilot chat ----------
+
+  let copilotOpen = false;
+  let copilotHistory = []; // [{role: "user"|"assistant", content: string}, ...] - this session only
+
+  function copilotConfigured() {
+    return !CONFIG.azureOpenAI.endpoint.includes("YOUR-RESOURCE-NAME") && !CONFIG.azureOpenAI.deploymentName.includes("YOUR-DEPLOYMENT-NAME");
+  }
+
+  // Grounds the assistant in the currently loaded contacts without sending every individual
+  // record (expensive in tokens, and needlessly exposes more data than most questions need):
+  // always include aggregate stats (counts by country/practice area/etc., the same numbers
+  // the KPI cards and chart already show), and only pull in specific contacts' details when
+  // the user's own message plausibly names one (a simple keyword match against the same
+  // fields the search box already searches).
+  function buildCopilotContext(userMessage) {
+    const scope = allContacts;
+    const topEntries = (map, n) =>
+      [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k}: ${v}`).join(", ") || "(none)";
+
+    const byCountry = new Map();
+    const byPracticeArea = new Map();
+    scope.forEach((c) => {
+      if (c.country) byCountry.set(c.country, (byCountry.get(c.country) || 0) + 1);
+      (c.practiceArea.length ? c.practiceArea : ["(Unspecified)"]).forEach((p) => byPracticeArea.set(p, (byPracticeArea.get(p) || 0) + 1));
+    });
+    const distinctCompanies = new Set(scope.map((c) => c.companyName).filter(Boolean)).size;
+
+    const summary = [
+      `Total contacts visible to this user: ${scope.length}.`,
+      `Distinct companies: ${distinctCompanies}.`,
+      `Distinct countries: ${byCountry.size}. Contacts by country (top 10): ${topEntries(byCountry, 10)}.`,
+      `Contacts by practice area (top 10): ${topEntries(byPracticeArea, 10)}.`,
+      `Contacts on a greeting card list: ${scope.filter((c) => c.greetingCards.length > 0).length}.`,
+    ].join("\n");
+
+    const words = (userMessage || "").toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
+    const matches = words.length
+      ? scope
+          .filter((c) => words.some((w) => [c.firstName, c.lastName, c.companyName, c.position, c.country].join(" ").toLowerCase().includes(w)))
+          .slice(0, 5)
+      : [];
+    const matchesText = matches.length
+      ? matches
+          .map((c) => `- ${[c.salutation, c.firstName, c.lastName].filter(Boolean).join(" ")}, ${c.position || "n/a"} at ${c.companyName || "n/a"} (${c.country || "n/a"}); email ${c.email || "n/a"}; practice area(s): ${c.practiceArea.join(", ") || "n/a"}`)
+          .join("\n")
+      : null;
+
+    return matchesText ? `${summary}\n\nContacts that might be relevant to this question:\n${matchesText}` : summary;
+  }
+
+  async function callCopilot(userMessage) {
+    const token = await getAzureOpenAIToken();
+    const url = `${CONFIG.azureOpenAI.endpoint}/openai/deployments/${CONFIG.azureOpenAI.deploymentName}/chat/completions?api-version=${CONFIG.azureOpenAI.apiVersion}`;
+    const systemPrompt =
+      "You are the Copilot assistant embedded in Skrine's client contact management system. " +
+      "Answer questions about the firm's contacts using only the data given to you below - if something " +
+      "isn't in it, say you don't have that detail rather than guessing. Be concise.\n\n" +
+      buildCopilotContext(userMessage);
+    const messages = [{ role: "system", content: systemPrompt }, ...copilotHistory, { role: "user", content: userMessage }];
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, temperature: 0.3, max_tokens: 600 }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      if (res.status === 403 || res.status === 401) {
+        throw new Error("Permission denied by Azure OpenAI. Check that this account has the \"Cognitive Services OpenAI User\" role on the resource, and that the app registration's Azure Cognitive Services permission is admin-consented.");
+      }
+      throw new Error(`Copilot request failed (${res.status}): ${text}`);
+    }
+    const data = await res.json();
+    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "(No response.)";
+  }
+
+  function renderCopilotMessages() {
+    const box = document.getElementById("copilot-messages");
+    box.innerHTML = copilotHistory
+      .map((m) => `<div class="copilot-msg ${m.role}">${escapeHtml(m.content)}</div>`)
+      .join("");
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function setCopilotThinking(isThinking) {
+    document.getElementById("copilot-thinking").classList.toggle("hidden", !isThinking);
+    document.getElementById("copilot-send").disabled = isThinking;
+    document.getElementById("copilot-input").disabled = isThinking;
+  }
+
+  async function sendCopilotMessage() {
+    const input = document.getElementById("copilot-input");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+
+    if (!copilotConfigured()) {
+      copilotHistory.push({ role: "user", content: text });
+      copilotHistory.push({ role: "assistant", content: "Copilot isn't set up yet - the Azure OpenAI endpoint and deployment name in CONFIG.azureOpenAI still need to be filled in." });
+      renderCopilotMessages();
+      return;
+    }
+
+    copilotHistory.push({ role: "user", content: text });
+    renderCopilotMessages();
+    setCopilotThinking(true);
+    try {
+      const reply = await callCopilot(text);
+      copilotHistory.push({ role: "assistant", content: reply });
+    } catch (e) {
+      copilotHistory.push({ role: "assistant", content: `Sorry, something went wrong: ${e.message}` });
+      console.error("[Copilot] Request failed:", e);
+    } finally {
+      setCopilotThinking(false);
+      renderCopilotMessages();
+    }
+  }
+
+  let copilotLauncherOpen = false;
+
+  function closeCopilotLauncher() {
+    copilotLauncherOpen = false;
+    document.getElementById("copilot-launcher").classList.add("hidden");
+    document.getElementById("copilot-fab").classList.remove("open");
+  }
+
+  function openCopilotPanel() {
+    copilotOpen = true;
+    document.getElementById("copilot-panel").classList.remove("hidden");
+    document.getElementById("copilot-fab").classList.add("open");
+    if (!copilotHistory.length) {
+      copilotHistory.push({ role: "assistant", content: "Hi, I'm your Skrine CRM Copilot. Ask me about your contacts - e.g. \"how many contacts do we have in Malaysia\" or \"what practice areas are most common\"." });
+      renderCopilotMessages();
+    }
+    document.getElementById("copilot-input").focus();
+  }
+
+  function toggleCopilot() {
+    if (copilotOpen) {
+      copilotOpen = false;
+      document.getElementById("copilot-panel").classList.add("hidden");
+      document.getElementById("copilot-fab").classList.remove("open");
+    } else {
+      openCopilotPanel();
+    }
+  }
+
+  // The FAB opens the quick-action launcher first (matching the Microsoft 365 Copilot
+  // pattern) rather than jumping straight into the full chat - "Open chat", a menu item, or
+  // the inline quick-ask box all transition from there into the same chat panel used
+  // throughout the rest of this file.
+  function toggleCopilotLauncher() {
+    if (copilotOpen) { toggleCopilot(); return; }
+    copilotLauncherOpen = !copilotLauncherOpen;
+    document.getElementById("copilot-launcher").classList.toggle("hidden", !copilotLauncherOpen);
+    document.getElementById("copilot-fab").classList.toggle("open", copilotLauncherOpen);
+  }
+
+  function openCopilotChatWithPrompt(promptText) {
+    closeCopilotLauncher();
+    if (!copilotOpen) openCopilotPanel();
+    if (promptText) {
+      document.getElementById("copilot-input").value = promptText;
+      sendCopilotMessage();
+    }
+  }
+
+  function wireCopilot() {
+    document.getElementById("copilot-fab").addEventListener("click", toggleCopilotLauncher);
+    document.getElementById("copilot-close").addEventListener("click", toggleCopilot);
+    document.getElementById("copilot-send").addEventListener("click", sendCopilotMessage);
+    document.getElementById("copilot-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendCopilotMessage();
+      }
+    });
+
+    document.querySelectorAll(".copilot-menu-item").forEach((btn) => {
+      btn.addEventListener("click", () => openCopilotChatWithPrompt(btn.dataset.prompt));
+    });
+    document.getElementById("copilot-open-chat").addEventListener("click", () => openCopilotChatWithPrompt(null));
+    document.getElementById("copilot-quick-ask").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const input = document.getElementById("copilot-quick-input");
+      const text = input.value.trim();
+      input.value = "";
+      if (text) openCopilotChatWithPrompt(text);
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!copilotLauncherOpen) return;
+      if (e.target.closest("#copilot-launcher") || e.target.closest("#copilot-fab")) return;
+      closeCopilotLauncher();
+    });
+  }
+
   // ---------- bootstrap ----------
 
   async function bootstrapData() {
     computeViewAllAccess();
-    setLoadingText("Loading your profile...");
-    currentUser = await graphGet("https://graph.microsoft.com/v1.0/me?$select=displayName,mail,userPrincipalName");
-    setLoadingText("Reading list schema...");
-    // Must resolve the real Lawyers/Partner In Charge column names before fetchContacts runs,
-    // since it uses them to build its own $select list.
+    setLoadingText("Loading your data...");
+    // The profile lookup and both group-member fetches don't depend on the list schema or
+    // on each other - they're kicked off immediately and only awaited once everything else
+    // is ready, instead of waiting for the schema -> contacts chain to finish first. That
+    // chain (schema must resolve before contacts, for its $select) is the only real
+    // dependency here; everything else was previously running needlessly one-after-another.
+    const meP = graphGet("https://graph.microsoft.com/v1.0/me?$select=displayName,mail,userPrincipalName");
+    const partnersP = fetchGroupMembers(CONFIG.partnerInChargeGroupId);
+    const lawyersP = fetchGroupMembers(CONFIG.lawyersGroupId);
+
     await fetchListSchema();
-    setLoadingText("Loading your contacts...");
     allContacts = await fetchContacts();
-    setLoadingText("Loading people-pickers...");
+
     // Best-effort: each of these already logs and degrades gracefully on its own failure
-    // (empty people-picker), so a Promise.all here won't take down the whole app if e.g.
+    // (empty people-picker), so this won't take down the whole app if e.g.
     // GroupMember.Read.All hasn't been consented yet.
-    const [partners, lawyers] = await Promise.all([
-      fetchGroupMembers(CONFIG.partnerInChargeGroupId),
-      fetchGroupMembers(CONFIG.lawyersGroupId),
-    ]);
+    const [me, partners, lawyers] = await Promise.all([meP, partnersP, lawyersP]);
+    currentUser = me;
     partnerInChargeOptions = partners;
     lawyerOptions = lawyers;
+    addManualPersonOptions(partnerInChargeOptions);
+    addManualPersonOptions(lawyerOptions);
     hideLoading();
     renderUserChip();
     initTable();
     wireControls();
+    wireCopilot();
     renderAll();
   }
 
