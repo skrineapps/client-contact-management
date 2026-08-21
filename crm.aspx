@@ -37,6 +37,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/lib/msal-browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --red:#c51f34;
@@ -125,8 +126,10 @@
   .kpi-card:nth-child(3){animation-delay:.10s;}
   .kpi-card:nth-child(4){animation-delay:.14s;}
   .kpi-icon{display:block;color:var(--red);font-size:13px;margin-bottom:9px;}
-  .kpi-value{font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--ink);line-height:1;letter-spacing:-0.01em;}
+  .kpi-value{font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--ink);line-height:1;letter-spacing:-0.01em;display:inline-block;transition:color .3s ease;}
+  .kpi-value.kpi-value-pulse{animation:kpiPulse .9s ease;color:var(--red);}
   .kpi-label{font-size:11.5px;color:var(--muted);margin-top:4px;white-space:nowrap;}
+  @keyframes kpiPulse{0%{transform:scale(1);}35%{transform:scale(1.16);}100%{transform:scale(1);}}
 
   .controls{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
   .controls button{border:1px solid var(--line);background:var(--card);font-size:12.5px;color:var(--muted);padding:9px 16px;border-radius:8px;cursor:pointer;transition:color .15s ease,border-color .15s ease,background .15s ease;}
@@ -512,9 +515,8 @@
     //    user_impersonation permission, admin-consented (a third API, distinct from both
     //    Microsoft Graph and the SharePoint API used elsewhere in this file).
     azureOpenAI: {
-      endpoint: "https://YOUR-RESOURCE-NAME.openai.azure.com",
-      deploymentName: "YOUR-DEPLOYMENT-NAME",
-      apiVersion: "2024-08-01-preview",
+      endpoint: "https://skrine-copilot.services.ai.azure.com/openai/v1",
+      deploymentName: "gpt-4.1-mini",
       scopes: ["https://cognitiveservices.azure.com/.default"],
     },
   };
@@ -587,7 +589,7 @@
     { key: "greetingCards", label: "Greeting Card", get: (c) => c.greetingCards.join(", "), chip: (c) => c.greetingCards, chipColor: greetingChipColor },
     { key: "alumniForeign", label: "Alumni / Foreign Law", cellClass: "muted-cell", get: (c) => c.alumniForeign },
     { key: "lawyers", label: "Lawyers", get: (c) => c.lawyers.join(", "), chip: (c) => c.lawyers },
-    { key: "created", label: "Created Date", cellClass: "muted-cell", get: (c) => formatDateTime(c.created) },
+    { key: "created", label: "Created Date", cellClass: "muted-cell", get: (c) => formatDateTime(c.created), filterType: "date" },
   ];
 
   // Each column's share of the table's width, proportional to its header title's length -
@@ -640,7 +642,7 @@
   // from that same per-column dropdown instead of a separate control.
   let columnFilterValues = {};
   let sortColumn = "id";
-  let sortDirection = "asc";
+  let sortDirection = "desc";
   let openMenuKey = null;
 
   var LOADING_MESSAGES = ["Signing you in...", "Loading your profile...", "Loading your contacts..."];
@@ -1252,12 +1254,19 @@
     return people;
   }
 
-  // Manually injected people-picker entries, for testing accounts that aren't (or can't yet
-  // be) added to the actual AD security groups. Add more emails here as needed.
-  const MANUAL_PERSON_OPTIONS = ["la.test@skrine.com"];
+  // Manually injected people-picker entries, for testing/specific accounts that aren't (or
+  // can't yet be) added to the actual AD security groups. Kept separate per dropdown so an
+  // entry can be added to just one of the two without affecting the other.
+  const MANUAL_PARTNER_IN_CHARGE_OPTIONS = ["la.test@skrine.com"];
+  const MANUAL_LAWYER_OPTIONS = ["la.test@skrine.com", "rayhan.kass@skrine.com"];
 
-  function addManualPersonOptions(list) {
-    MANUAL_PERSON_OPTIONS.forEach((email) => {
+  // Same idea, but for "view all contacts" access (see computeViewAllAccess below) rather
+  // than a dropdown - accounts listed here get full view-all/export access even before (or
+  // without) actually being added to the real "view all contacts" AD security group.
+  const MANUAL_VIEW_ALL_CONTACTS_OPTIONS = ["jc@skrine.com"];
+
+  function addManualPersonOptions(list, emails) {
+    emails.forEach((email) => {
       if (!list.some((p) => (p.mail || "").toLowerCase() === email.toLowerCase())) {
         list.push({ id: null, displayName: email, mail: email });
       }
@@ -1273,6 +1282,12 @@
   function computeViewAllAccess() {
     const claims = activeAccount && activeAccount.idTokenClaims;
     const groups = claims && claims.groups;
+    const username = ((activeAccount && activeAccount.username) || "").toLowerCase();
+    if (MANUAL_VIEW_ALL_CONTACTS_OPTIONS.some((email) => email.toLowerCase() === username)) {
+      userCanViewAllContacts = true;
+      console.log("[Contacts] userCanViewAllContacts: true (manual override for", username, ")");
+      return;
+    }
     console.log("[Contacts] ID token groups claim:", groups);
     console.log("[Contacts] Looking for group ID:", CONFIG.viewAllContactsGroupId);
     if (Array.isArray(groups)) {
@@ -1432,6 +1447,18 @@
         });
         return;
       }
+      if (col.filterType === "date") {
+        if (filter.year == null && filter.month == null) return;
+        rows = rows.filter((c) => {
+          if (!c.created) return false;
+          const d = new Date(c.created);
+          if (isNaN(d.getTime())) return false;
+          if (filter.year != null && d.getFullYear() !== filter.year) return false;
+          if (filter.month != null && d.getMonth() !== filter.month) return false;
+          return true;
+        });
+        return;
+      }
       if (!filter.size) return;
       rows = rows.filter((c) => columnValues(col, c).some((v) => filter.has(v)));
     });
@@ -1463,14 +1490,40 @@
     return sortDirection === "desc" ? -result : result;
   }
 
+  // Animates a KPI card's number from its current displayed value to `to` (a short
+  // count-up tween plus a pulse), instead of just snapping the text - makes it obvious
+  // the cards are reacting live to the table's filters rather than being static totals.
+  function animateKpiValue(id, to) {
+    const el = document.getElementById(id);
+    const from = parseInt(el.textContent, 10) || 0;
+    if (from === to) return;
+    const duration = 900;
+    const startTime = performance.now();
+    el.classList.remove("kpi-value-pulse");
+    void el.offsetWidth; // restart the pulse animation even if it's still mid-flight
+    el.classList.add("kpi-value-pulse");
+    function tick(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(from + (to - from) * eased);
+      if (progress < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        el.textContent = to;
+        el.classList.remove("kpi-value-pulse");
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
   function renderKpis() {
-    const scope = currentScopeContacts();
-    document.getElementById("stat-mine").textContent = scope.length;
-    document.getElementById("stat-companies").textContent = new Set(scope.map((c) => c.companyName).filter(Boolean)).size;
-    document.getElementById("stat-countries").textContent = new Set(scope.map((c) => c.country).filter(Boolean)).size;
-    document.getElementById("stat-cards").textContent = scope.filter((c) => c.greetingCards.length > 0).length;
-    document.getElementById("stat-practice-areas").textContent = new Set(scope.flatMap((c) => c.practiceArea).filter(Boolean)).size;
-    document.getElementById("stat-alumni").textContent = scope.filter((c) => c.alumniForeign).length;
+    const scope = filteredContacts();
+    animateKpiValue("stat-mine", scope.length);
+    animateKpiValue("stat-companies", new Set(scope.map((c) => c.companyName).filter(Boolean)).size);
+    animateKpiValue("stat-countries", new Set(scope.map((c) => c.country).filter(Boolean)).size);
+    animateKpiValue("stat-cards", scope.filter((c) => c.greetingCards.length > 0).length);
+    animateKpiValue("stat-practice-areas", new Set(scope.flatMap((c) => c.practiceArea).filter(Boolean)).size);
+    animateKpiValue("stat-alumni", scope.filter((c) => c.alumniForeign).length);
   }
 
   function renderList() {
@@ -1579,7 +1632,21 @@
     const filter = columnFilterValues[col.key];
     if (!filter) return false;
     if (col.filterType === "range") return filter.min != null || filter.max != null;
+    if (col.filterType === "date") return filter.year != null || filter.month != null;
     return filter.size > 0;
+  }
+
+  const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  function getDistinctYearsForColumn(col) {
+    const scope = currentScopeContacts();
+    const years = new Set();
+    scope.forEach((c) => {
+      if (!c.created) return;
+      const d = new Date(c.created);
+      if (!isNaN(d.getTime())) years.add(d.getFullYear());
+    });
+    return [...years].sort((a, b) => b - a);
   }
 
   function updateFilterButtonStates() {
@@ -1593,6 +1660,7 @@
     const menu = document.getElementById("col-menu");
     const [ascLabel, descLabel] = sortLabelsFor(col);
     const isRange = col.filterType === "range";
+    const isDate = col.filterType === "date";
     const currentFilter = columnFilterValues[col.key];
 
     const sortButtons = `
@@ -1610,6 +1678,30 @@
         <div class="col-menu-range">
           <label>Min<input type="number" class="col-menu-range-input" data-bound="min" value="${escapeHtml(String(min))}" /></label>
           <label>Max<input type="number" class="col-menu-range-input" data-bound="max" value="${escapeHtml(String(max))}" /></label>
+        </div>
+        <div class="col-menu-footer">
+          <button type="button" class="btn" data-action="clear">Clear filter</button>
+          <button type="button" class="btn primary" data-action="apply">OK</button>
+        </div>`;
+    } else if (isDate) {
+      const years = getDistinctYearsForColumn(col);
+      const selYear = currentFilter && currentFilter.year != null ? currentFilter.year : "";
+      const selMonth = currentFilter && currentFilter.month != null ? currentFilter.month : "";
+      menu.innerHTML = `
+        ${sortButtons}
+        <div class="col-menu-range">
+          <label>Year
+            <select class="col-menu-range-input" data-bound="year">
+              <option value="">Any</option>
+              ${years.map((y) => `<option value="${y}" ${String(y) === String(selYear) ? "selected" : ""}>${y}</option>`).join("")}
+            </select>
+          </label>
+          <label>Month
+            <select class="col-menu-range-input" data-bound="month">
+              <option value="">Any</option>
+              ${MONTH_NAMES.map((name, i) => `<option value="${i}" ${String(i) === String(selMonth) ? "selected" : ""}>${escapeHtml(name)}</option>`).join("")}
+            </select>
+          </label>
         </div>
         <div class="col-menu-footer">
           <button type="button" class="btn" data-action="clear">Clear filter</button>
@@ -1675,6 +1767,24 @@
           delete columnFilterValues[col.key];
         } else {
           columnFilterValues[col.key] = { min, max };
+        }
+        closeColumnMenu();
+        currentPage = 1;
+        renderAll();
+      });
+      return;
+    }
+
+    if (isDate) {
+      menu.querySelector('[data-action="apply"]').addEventListener("click", () => {
+        const yearRaw = menu.querySelector('[data-bound="year"]').value;
+        const monthRaw = menu.querySelector('[data-bound="month"]').value;
+        const year = yearRaw === "" ? null : parseInt(yearRaw, 10);
+        const month = monthRaw === "" ? null : parseInt(monthRaw, 10);
+        if (year == null && month == null) {
+          delete columnFilterValues[col.key];
+        } else {
+          columnFilterValues[col.key] = { year, month };
         }
         closeColumnMenu();
         currentPage = 1;
@@ -2219,18 +2329,24 @@
     document.getElementById("user-email").textContent = currentUser.mail || currentUser.userPrincipalName || "";
   }
 
+  let searchDebounceTimer = null;
+
   function wireControls() {
     document.getElementById("search").addEventListener("input", (e) => {
       searchTerm = e.target.value.trim();
       currentPage = 1;
-      renderList();
+      // Debounced so a full re-scan + re-render (table and KPI cards both) only happens
+      // once typing pauses briefly, instead of on every single keystroke.
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(renderAll, 200);
     });
     document.getElementById("clear-filters").addEventListener("click", () => {
+      clearTimeout(searchDebounceTimer);
       searchTerm = "";
       currentPage = 1;
       columnFilterValues = {};
       sortColumn = "id";
-      sortDirection = "asc";
+      sortDirection = "desc";
       document.getElementById("search").value = "";
       updateFilterButtonStates();
       renderAll();
@@ -2316,28 +2432,30 @@
 
   async function callCopilot(userMessage) {
     const token = await getAzureOpenAIToken();
-    const url = `${CONFIG.azureOpenAI.endpoint}/openai/deployments/${CONFIG.azureOpenAI.deploymentName}/chat/completions?api-version=${CONFIG.azureOpenAI.apiVersion}`;
+    const url = `${CONFIG.azureOpenAI.endpoint}/responses`;
     const systemPrompt =
       "You are the Copilot assistant embedded in Skrine's client contact management system. " +
       "Answer questions about the firm's contacts using only the data given to you below - if something " +
       "isn't in it, say you don't have that detail rather than guessing. Be concise.\n\n" +
       buildCopilotContext(userMessage);
-    const messages = [{ role: "system", content: systemPrompt }, ...copilotHistory, { role: "user", content: userMessage }];
+    const input = [{ role: "system", content: systemPrompt }, ...copilotHistory, { role: "user", content: userMessage }];
 
     const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ messages, temperature: 0.3, max_tokens: 600 }),
+      body: JSON.stringify({ model: CONFIG.azureOpenAI.deploymentName, input }),
     });
     if (!res.ok) {
       const text = await res.text();
       if (res.status === 403 || res.status === 401) {
-        throw new Error("Permission denied by Azure OpenAI. Check that this account has the \"Cognitive Services OpenAI User\" role on the resource, and that the app registration's Azure Cognitive Services permission is admin-consented.");
+        throw new Error("Permission denied by Azure AI Foundry. Check that this account has the \"Cognitive Services OpenAI User\" role on the skrine-copilot resource, and that the app registration's Azure Cognitive Services permission is admin-consented.");
       }
       throw new Error(`Copilot request failed (${res.status}): ${text}`);
     }
     const data = await res.json();
-    return (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || "(No response.)";
+    const message = (data.output || []).find((o) => o.type === "message");
+    const textPart = message && (message.content || []).find((c) => c.type === "output_text");
+    return (textPart && textPart.text) || "(No response.)";
   }
 
   function renderCopilotMessages() {
@@ -2354,11 +2472,112 @@
     document.getElementById("copilot-input").disabled = isThinking;
   }
 
+  // ---------- chat-triggered contact export (Excel) ----------
+  // Restricted to the same security group as "view all contacts" - exports a single named
+  // contact (e.g. "export John Tan's contact into excel"), not the whole list.
+
+  let copilotPendingExportCandidates = null;
+
+  function looksLikeContactExportRequest(text) {
+    const t = (text || "").toLowerCase();
+    return t.includes("export") && (t.includes("excel") || t.includes("xlsx") || t.includes("spreadsheet"));
+  }
+
+  function findContactMatchesInText(text, contacts) {
+    const t = (text || "").toLowerCase();
+    return contacts.filter((c) => {
+      const first = (c.firstName || "").trim().toLowerCase();
+      const last = (c.lastName || "").trim().toLowerCase();
+      if (!first && !last) return false;
+      const full = `${first} ${last}`.trim();
+      if (full.length > 2 && t.includes(full)) return true;
+      if (first && last && t.includes(first) && t.includes(last)) return true;
+      return false;
+    });
+  }
+
+  function contactDisplayLabel(c) {
+    const name = [c.salutation, c.firstName, c.lastName].filter(Boolean).join(" ");
+    return c.companyName ? `${name} (${c.companyName})` : name;
+  }
+
+  function describeExportCandidates(matches) {
+    const list = matches.map((c) => `- ${contactDisplayLabel(c)}`).join("\n");
+    return `I found a few contacts with that name - which one did you mean?\n${list}\n\nReply with their company name, or say "first" / "second", etc.`;
+  }
+
+  function resolveExportDisambiguation(text, candidates) {
+    const t = (text || "").toLowerCase();
+    const ordinalWords = ["first", "second", "third", "fourth", "fifth"];
+    for (let i = 0; i < ordinalWords.length && i < candidates.length; i++) {
+      if (t.includes(ordinalWords[i]) || t.trim() === String(i + 1)) return candidates[i];
+    }
+    const byCompany = candidates.filter((c) => c.companyName && t.includes(c.companyName.toLowerCase()));
+    if (byCompany.length === 1) return byCompany[0];
+    const byEmail = candidates.filter((c) => c.email && t.includes(c.email.toLowerCase()));
+    if (byEmail.length === 1) return byEmail[0];
+    return null;
+  }
+
+  function exportContactsToExcel(contacts, fileNameHint) {
+    const header = COLUMNS.map((col) => col.label);
+    const rows = contacts.map((c) => COLUMNS.map((col) => (col.chip ? col.chip(c).join(", ") : (col.get(c) == null ? "" : col.get(c)))));
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws["!cols"] = COLUMNS.map((col) => ({ wch: Math.max(10, col.label.length + 4) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Contacts");
+    const safeName = (fileNameHint || "contact").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+    XLSX.writeFile(wb, `skrine-${safeName || "contact"}-contact.xlsx`);
+  }
+
+  function finishContactExport(contact) {
+    exportContactsToExcel([contact], `${contact.firstName}-${contact.lastName}`);
+    copilotHistory.push({ role: "assistant", content: `Done - I've exported ${contactDisplayLabel(contact)}'s contact to an Excel file. Check your downloads.` });
+    renderCopilotMessages();
+  }
+
   async function sendCopilotMessage() {
     const input = document.getElementById("copilot-input");
     const text = input.value.trim();
     if (!text) return;
     input.value = "";
+
+    if (copilotPendingExportCandidates) {
+      const candidates = copilotPendingExportCandidates;
+      const resolved = resolveExportDisambiguation(text, candidates);
+      if (resolved) {
+        copilotPendingExportCandidates = null;
+        copilotHistory.push({ role: "user", content: text });
+        renderCopilotMessages();
+        finishContactExport(resolved);
+        return;
+      }
+      copilotPendingExportCandidates = null;
+    }
+
+    if (looksLikeContactExportRequest(text)) {
+      copilotHistory.push({ role: "user", content: text });
+      renderCopilotMessages();
+      if (!userCanViewAllContacts) {
+        copilotHistory.push({ role: "assistant", content: "Sorry, exporting a contact to Excel isn't available for your account - it's limited to the \"view all contacts\" access group." });
+        renderCopilotMessages();
+        return;
+      }
+      const matches = findContactMatchesInText(text, currentScopeContacts());
+      if (!matches.length) {
+        copilotHistory.push({ role: "assistant", content: "I couldn't find a contact matching that name - could you check the spelling or try their full name?" });
+        renderCopilotMessages();
+        return;
+      }
+      if (matches.length === 1) {
+        finishContactExport(matches[0]);
+        return;
+      }
+      copilotPendingExportCandidates = matches;
+      copilotHistory.push({ role: "assistant", content: describeExportCandidates(matches) });
+      renderCopilotMessages();
+      return;
+    }
 
     if (!copilotConfigured()) {
       copilotHistory.push({ role: "user", content: text });
@@ -2485,8 +2704,8 @@
     currentUser = me;
     partnerInChargeOptions = partners;
     lawyerOptions = lawyers;
-    addManualPersonOptions(partnerInChargeOptions);
-    addManualPersonOptions(lawyerOptions);
+    addManualPersonOptions(partnerInChargeOptions, MANUAL_PARTNER_IN_CHARGE_OPTIONS);
+    addManualPersonOptions(lawyerOptions, MANUAL_LAWYER_OPTIONS);
     hideLoading();
     renderUserChip();
     initTable();
