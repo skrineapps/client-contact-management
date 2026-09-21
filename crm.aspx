@@ -796,6 +796,14 @@
     return (s || "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  // "Others" is a catch-all salutation choice, not an actual title, so it reads oddly
+  // prefixed onto a name (e.g. "Others Kean Lee Swee") - every real salutation (Mr, Datuk,
+  // Dr, etc.) still shows normally.
+  function contactFullName(c) {
+    const salutation = c.salutation && c.salutation.trim().toLowerCase() !== "others" ? c.salutation : "";
+    return [salutation, c.firstName, c.lastName].filter(Boolean).join(" ");
+  }
+
   function initialsOf(fullname) {
     if (!fullname) return "--";
     var parts = fullname.trim().split(/\s+/);
@@ -2014,7 +2022,7 @@
   function renderViewModal(c) {
     document.getElementById("modal-box").innerHTML = `
       <div class="modal-top">
-        <h2>${escapeHtml([c.salutation, c.firstName, c.lastName].filter(Boolean).join(" ")) || "(No name)"}</h2>
+        <h2>${escapeHtml(contactFullName(c)) || "(No name)"}</h2>
         <button class="close" id="modal-close" aria-label="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
       </div>
       <div class="modal-sub">${escapeHtml([c.position, c.companyName].filter(Boolean).join(" - ")) || "-"}</div>
@@ -2423,7 +2431,7 @@
       : [];
     const matchesText = matches.length
       ? matches
-          .map((c) => `- ${[c.salutation, c.firstName, c.lastName].filter(Boolean).join(" ")}, ${c.position || "n/a"} at ${c.companyName || "n/a"} (${c.country || "n/a"}); email ${c.email || "n/a"}; practice area(s): ${c.practiceArea.join(", ") || "n/a"}`)
+          .map((c) => `- ${contactFullName(c)}, ${c.position || "n/a"} at ${c.companyName || "n/a"} (${c.country || "n/a"}); email ${c.email || "n/a"}; practice area(s): ${c.practiceArea.join(", ") || "n/a"}`)
           .join("\n")
       : null;
 
@@ -2497,7 +2505,7 @@
   }
 
   function contactDisplayLabel(c) {
-    const name = [c.salutation, c.firstName, c.lastName].filter(Boolean).join(" ");
+    const name = contactFullName(c);
     return c.companyName ? `${name} (${c.companyName})` : name;
   }
 
