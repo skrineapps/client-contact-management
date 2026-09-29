@@ -2507,15 +2507,44 @@
     document.getElementById("copilot-input").disabled = isThinking;
   }
 
-  // ---------- chat-triggered contact export (Excel) ----------
-  // Restricted to the same security group as "view all contacts" - exports a single named
-  // contact (e.g. "export John Tan's contact into excel"), not the whole list.
+  // ---------- chat-triggered contact export (Excel / CSV) ----------
+  // Restricted to the same security group as "view all contacts". Supports exporting a single
+  // named contact (e.g. "export John Tan's contact into excel") as .xlsx, or a criteria-based
+  // set of contacts (e.g. "export contacts I created recently", "export my contacts from
+  // China") as .csv.
 
+  // All three "pending" states below share one action flag, since the same disambiguation/
+  // clarification/fuzzy-suggestion flows are reused by both exporting and just listing
+  // contacts in chat - the flag says which one to actually do once resolved.
+  let copilotPendingAction = "export";
   let copilotPendingExportCandidates = null;
+  let copilotPendingRoleClarification = null;
+  let copilotPendingFuzzySuggestion = null;
 
   function looksLikeContactExportRequest(text) {
+    // Broad on purpose - this chat only ever discusses contacts, so a bare "export" (including
+    // short follow-ups like "export it for me") is virtually always about exporting contacts,
+    // and a false trigger just falls through to the "couldn't tell which contacts" message
+    // rather than doing anything wrong.
+    return /\bexport\b/i.test(text || "");
+  }
+
+  // "give me a list of contacts under X", "show me contacts from Y", "who are the contacts
+  // owned by Z" - same underlying question as export, just wanting an answer in chat instead
+  // of a downloaded file. Checked only when the export trigger above didn't already match, so
+  // "export a list of contacts..." still downloads a file rather than only listing in chat.
+  function looksLikeContactListRequest(text) {
     const t = (text || "").toLowerCase();
-    return t.includes("export") && (t.includes("excel") || t.includes("xlsx") || t.includes("spreadsheet"));
+    return /\b(list|show|give me|who('s| is| are)|which contacts|find)\b/.test(t) && /\bcontact/.test(t);
+  }
+
+  // Whole-word match only - a plain substring check would let a short name like "Li" match
+  // right through ordinary words that happen to contain those letters (e.g. "the list",
+  // "australia"), which caused real false positives once tested against short 2-letter names.
+  function textHasWord(haystackLower, wordLower) {
+    if (!wordLower) return false;
+    const escaped = wordLower.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\b${escaped}\\b`, "i").test(haystackLower);
   }
 
   function findContactMatchesInText(text, contacts) {
@@ -2525,8 +2554,8 @@
       const last = (c.lastName || "").trim().toLowerCase();
       if (!first && !last) return false;
       const full = `${first} ${last}`.trim();
-      if (full.length > 2 && t.includes(full)) return true;
-      if (first && last && t.includes(first) && t.includes(last)) return true;
+      if (full.length > 2 && textHasWord(t, full)) return true;
+      if (first && last && textHasWord(t, first) && textHasWord(t, last)) return true;
       return false;
     });
   }
@@ -2571,6 +2600,429 @@
     renderCopilotMessages();
   }
 
+  function finishCriteriaExport(scope, criteria) {
+    const matched = applyExportCriteria(scope, criteria);
+    const description = describeExportCriteria(criteria);
+    if (!matched.length) {
+      copilotHistory.push({ role: "assistant", content: `No contacts matched (${description}).` });
+      renderCopilotMessages();
+      return;
+    }
+    exportContactsToCsv(matched, description);
+    copilotHistory.push({
+      role: "assistant",
+      content: `Done - I've exported ${matched.length} contact${matched.length === 1 ? "" : "s"} (${description}) to a CSV file. Check your downloads.`,
+    });
+    renderCopilotMessages();
+  }
+
+  function finishSingleContactList(contact) {
+    copilotHistory.push({ role: "assistant", content: `Found 1 contact: ${contactDisplayLabel(contact)}.` });
+    renderCopilotMessages();
+  }
+
+  // "List mode" counterpart to finishCriteriaExport - answers in chat instead of downloading
+  // a file. Capped at a preview so a broad match (e.g. a whole country) doesn't dump hundreds
+  // of lines into the chat panel; points to the export feature for the full set instead.
+  const CONTACT_LIST_PREVIEW_MAX = 25;
+
+  function finishCriteriaList(scope, criteria) {
+    const matched = applyExportCriteria(scope, criteria);
+    const description = describeExportCriteria(criteria);
+    if (!matched.length) {
+      copilotHistory.push({ role: "assistant", content: `No contacts matched (${description}).` });
+      renderCopilotMessages();
+      return;
+    }
+    const preview = matched.slice(0, CONTACT_LIST_PREVIEW_MAX).map((c) => `- ${contactDisplayLabel(c)}`).join("\n");
+    const moreNote = matched.length > CONTACT_LIST_PREVIEW_MAX
+      ? `\n\n...and ${matched.length - CONTACT_LIST_PREVIEW_MAX} more. Say "export" instead if you'd like the full list as a CSV file.`
+      : "";
+    copilotHistory.push({
+      role: "assistant",
+      content: `Found ${matched.length} contact${matched.length === 1 ? "" : "s"} (${description}):\n${preview}${moreNote}`,
+    });
+    renderCopilotMessages();
+  }
+
+  // A bare name with no role keyword that matches under more than one role (e.g. "John Tan"
+  // is both Partner In Charge on some contacts and Lawyer In Charge on others) is genuinely
+  // ambiguous - rather than silently picking one and missing the rest, this asks which the
+  // user wants, showing how many contacts are under each so they can judge which to pick.
+  function describeRoleClarification(scope, criteria) {
+    const lines = criteria.rolePerson.roles.map((r) => {
+      const count = applyExportCriteria(scope, { ...criteria, rolePerson: { roles: [r] } }).length;
+      return `- ${r.label}: ${count} contact${count === 1 ? "" : "s"}`;
+    });
+    const name = criteria.rolePerson.roles[0].name;
+    return `"${name}" shows up under more than one role:\n${lines.join("\n")}\n\nExport all of these together, or just one role? Reply "all", or name the role (e.g. "lawyer" or "partner").`;
+  }
+
+  function resolveRoleClarification(text, pendingCriteria) {
+    const t = (text || "").toLowerCase();
+    if (/\ball\b/.test(t)) return pendingCriteria;
+    const matched = pendingCriteria.rolePerson.roles.filter((r) => {
+      const roleField = EXPORT_ROLE_FIELDS.find((f) => f.key === r.role);
+      return roleField.keywords.test(text) || t.includes(r.role.toLowerCase());
+    });
+    if (!matched.length) return null;
+    return { ...pendingCriteria, rolePerson: { roles: matched, ambiguous: false } };
+  }
+
+  // Recognizes a handful of common recency phrasings and returns how many days back to
+  // include, or null if the message doesn't mention a time period at all.
+  function parseRecencyDays(text) {
+    const t = (text || "").toLowerCase();
+    let m = t.match(/last (\d+)\s*day/);
+    if (m) return parseInt(m[1], 10);
+    m = t.match(/last (\d+)\s*week/);
+    if (m) return parseInt(m[1], 10) * 7;
+    m = t.match(/last (\d+)\s*month/);
+    if (m) return parseInt(m[1], 10) * 30;
+    if (/\btoday\b/.test(t)) return 1;
+    if (/\bthis week\b/.test(t)) return 7;
+    if (/\bthis month\b/.test(t)) return 30;
+    if (/\brecent(ly)?\b|\blatest\b|\bnewest\b/.test(t)) return 30;
+    return null;
+  }
+
+  // Matches against the actual country values present in the data (not free-form text
+  // extraction), so it never false-positives on an unrelated word. A full-phrase match (the
+  // whole stored value, e.g. "south korea") wins outright; otherwise falls back to a whole
+  // word shared between the message and the country name (e.g. "korea" inside "South Korea"),
+  // so a user naming just part of a multi-word country still matches.
+  function findCountryInText(text, contacts) {
+    const t = (text || "").toLowerCase();
+    const words = t.split(/[^a-z0-9]+/).filter(Boolean);
+    const countries = [...new Set(contacts.map((c) => c.country).filter(Boolean))];
+
+    const fullPhraseMatches = countries.filter((country) => t.includes(country.toLowerCase()));
+    if (fullPhraseMatches.length) {
+      fullPhraseMatches.sort((a, b) => b.length - a.length);
+      return fullPhraseMatches[0];
+    }
+
+    const wordMatches = countries
+      .map((country) => {
+        const countryWords = country.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+        const matched = countryWords.filter((w) => words.includes(w));
+        return matched.length ? { country, score: matched.join("").length } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+    return wordMatches.length ? wordMatches[0].country : null;
+  }
+
+  // Generic "does any of these known values appear in the message" matcher, shared by the
+  // partner/lawyer/owner/creator lookups below. Tried in order, most precise first: the exact
+  // full phrase; then every word of the value present somewhere in the message (handles word
+  // order varying); then a single distinctive word shared with the value, so referring to
+  // someone by first name only ("export contacts under Charmayne") still matches even though
+  // the stored value is their full name. A match using more shared words always outranks one
+  // using fewer, so a full-name mention stays more precise than a bare first-name one.
+  function findValueInText(text, values) {
+    const t = (text || "").toLowerCase();
+    const candidates = [...new Set(values.filter(Boolean))];
+
+    const fullMatches = candidates.filter((v) => textHasWord(t, v.toLowerCase()));
+    if (fullMatches.length) {
+      fullMatches.sort((a, b) => b.length - a.length);
+      return fullMatches[0];
+    }
+
+    const scored = candidates
+      .map((v) => {
+        const words = v.toLowerCase().split(/\s+/).filter((w) => w.length >= 3);
+        const matchedWords = words.filter((w) => textHasWord(t, w));
+        return matchedWords.length ? { v, wordCount: matchedWords.length, score: matchedWords.join("").length } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.wordCount - a.wordCount || b.score - a.score);
+    return scored.length ? scored[0].v : null;
+  }
+
+  // Which role a message is asking about, and how to read/filter that role's value(s) off a
+  // contact. Checked in this order so "partner in charge" doesn't also match "in charge" as
+  // some other role's keyword.
+  const EXPORT_ROLE_FIELDS = [
+    { key: "partner", keywords: /\bpartner( in charge)?\b/i, values: (c) => (c.partner ? [c.partner] : []), label: "partner in charge" },
+    { key: "lawyer", keywords: /\blawyers?( in charge)?\b/i, values: (c) => c.lawyers || [], label: "lawyer in charge" },
+    { key: "contactOwner", keywords: /\bcontact owner\b|\bowner\b/i, values: (c) => (c.contactOwner ? [c.contactOwner] : []), label: "contact owner" },
+    { key: "createdBy", keywords: /\bcreator\b|\bcreated\b/i, values: (c) => (c.createdBy ? [c.createdBy] : []), label: "created by" },
+  ];
+
+  function levenshteinDistance(a, b) {
+    const m = a.length, n = b.length;
+    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+    return dp[m][n];
+  }
+
+  // Every name-like value in the user's permitted scope, tagged with where it came from -
+  // either a contact's own name, or one of the four role fields - so a fuzzy match can be
+  // resolved back into the right action (export/list that contact, or filter by that role).
+  function collectFuzzyNameCandidates(scope) {
+    const candidates = [];
+    const seen = new Set();
+    const add = (name, kind, roleKey, roleLabel) => {
+      if (!name) return;
+      const dedupeKey = `${kind}|${roleKey || ""}|${name.toLowerCase()}`;
+      if (seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+      candidates.push({ name, kind, roleKey, roleLabel });
+    };
+    scope.forEach((c) => {
+      const full = contactFullName(c).trim();
+      if (full) add(full, "contact");
+      EXPORT_ROLE_FIELDS.forEach((role) => role.values(c).forEach((v) => add(v, "role", role.key, role.label)));
+    });
+    return candidates;
+  }
+
+  // Slides a window of the same word-count as each candidate name across the message and
+  // finds the closest one by edit distance (allowing up to ~20% of its characters to differ -
+  // e.g. one typo'd letter in "Gooi Yong Shuh" vs. the real "Gooi Yang Shuh"). Only considers
+  // multi-word names, since fuzzy-matching a single short word against ordinary sentence
+  // words would false-positive constantly.
+  function findFuzzyNameSuggestion(text, candidates) {
+    const words = (text || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+    let best = null;
+    candidates.forEach((cand) => {
+      const nameWords = cand.name.toLowerCase().split(/\s+/).filter(Boolean);
+      const n = nameWords.length;
+      if (n < 2 || words.length < n) return;
+      for (let i = 0; i + n <= words.length; i++) {
+        const gram = words.slice(i, i + n).join(" ");
+        const distance = levenshteinDistance(gram, cand.name.toLowerCase());
+        const threshold = Math.max(1, Math.floor(cand.name.length * 0.2));
+        if (distance > 0 && distance <= threshold && (!best || distance < best.distance)) {
+          best = { ...cand, distance };
+        }
+      }
+    });
+    return best;
+  }
+
+  // Looks for a person's name under any of the four "who's responsible for this contact"
+  // fields. If the message explicitly names one of those roles ("lawyer", "partner in
+  // charge", etc.), only that field is checked. Otherwise all four are checked, and the same
+  // person can genuinely be Partner In Charge on some contacts, Lawyer In Charge on others,
+  // and Contact Owner on others still - different firms use these terms differently, and a
+  // name isn't guaranteed to only live in one column. So every role the name is found under
+  // gets returned, not just the first match; the caller decides whether to combine them all
+  // or ask the user which one they meant.
+  function findRolePersonCriteria(text, scope) {
+    const mentionedRoles = EXPORT_ROLE_FIELDS.filter((r) => r.keywords.test(text || ""));
+    const rolesToCheck = mentionedRoles.length ? mentionedRoles : EXPORT_ROLE_FIELDS;
+    const found = [];
+    for (const role of rolesToCheck) {
+      const values = new Set();
+      scope.forEach((c) => role.values(c).forEach((v) => v && values.add(v)));
+      const matchedName = findValueInText(text, [...values]);
+      if (matchedName) found.push({ role: role.key, label: role.label, name: matchedName });
+    }
+    if (!found.length) return null;
+    // An explicit role keyword ("lawyer John Tan") is a deliberate, unambiguous choice - use
+    // exactly what was asked for even if other roles also happen to match. Only a bare name
+    // with no role keyword is ambiguous enough to be worth asking about.
+    return { roles: found, ambiguous: !mentionedRoles.length && found.length > 1 };
+  }
+
+  // Deliberately does NOT match a bare "my contacts" - that phrase is too ambiguous (an admin
+  // saying "export my contacts from Malaysia" usually means "our contacts", not "ones I
+  // personally created"), and wrongly AND-ing it with other criteria caused real matches to
+  // be missed entirely. Only unambiguous "I created/made/added it" phrasing counts here.
+  function looksLikeCreatedByMe(text) {
+    return /\bi\s+(have\s+)?created\b|\bcreated by me\b|\bi\s+made\b|\bi\s+added\b/i.test(text || "");
+  }
+
+  function looksLikeAllContactsPhrase(text) {
+    return /\ball (my )?contacts\b|\beverything\b|\bevery contact\b/i.test(text || "");
+  }
+
+  function parseExportCriteria(text, scope) {
+    const createdByMe = looksLikeCreatedByMe(text);
+    // Only look for a role/person match when nothing else already accounts for the message -
+    // e.g. "contacts created by me" should stay the simple createdByMe case, not also try to
+    // match "me" as a literal name against the createdBy role field.
+    const rolePerson = !createdByMe ? findRolePersonCriteria(text, scope) : null;
+
+    // A matched person's name can share an ordinary word with a country (e.g. "Hong Koon"
+    // vs. "Hong Kong") - strip the matched name out before scanning for anything else, so
+    // that shared word doesn't also get misread as a location filter that was never intended.
+    let remainingText = text;
+    if (rolePerson) {
+      rolePerson.roles.forEach((r) => {
+        const escaped = r.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        remainingText = remainingText.replace(new RegExp(escaped, "gi"), " ");
+      });
+    }
+
+    const withinDays = parseRecencyDays(remainingText);
+    const country = findCountryInText(remainingText, scope);
+    const isAll = looksLikeAllContactsPhrase(remainingText);
+    return {
+      withinDays, country, createdByMe, isAll, rolePerson,
+      any: withinDays != null || !!country || createdByMe || isAll || !!rolePerson,
+    };
+  }
+
+  function applyExportCriteria(scope, criteria) {
+    let rows = scope;
+    if (criteria.country) rows = rows.filter((c) => (c.country || "").toLowerCase() === criteria.country.toLowerCase());
+    if (criteria.createdByMe) {
+      const me = (currentUser.displayName || "").toLowerCase();
+      rows = rows.filter((c) => (c.createdBy || "").toLowerCase() === me);
+    }
+    if (criteria.rolePerson) {
+      // OR across every matched role - a contact counts if the name shows up under ANY of
+      // them, since (unresolved ambiguity aside) the intent is "contacts connected to this
+      // person", not "connected to them under one specific column".
+      rows = rows.filter((c) =>
+        criteria.rolePerson.roles.some((r) => {
+          const roleField = EXPORT_ROLE_FIELDS.find((f) => f.key === r.role);
+          return roleField.values(c).some((v) => (v || "").toLowerCase() === r.name.toLowerCase());
+        })
+      );
+    }
+    if (criteria.withinDays != null) {
+      const cutoff = Date.now() - criteria.withinDays * 24 * 60 * 60 * 1000;
+      rows = rows.filter((c) => {
+        if (!c.created) return false;
+        const t = new Date(c.created).getTime();
+        return !isNaN(t) && t >= cutoff;
+      });
+    }
+    return rows;
+  }
+
+  function describeExportCriteria(criteria) {
+    const parts = [];
+    if (criteria.createdByMe) parts.push("created by you");
+    if (criteria.rolePerson) {
+      const name = criteria.rolePerson.roles[0].name;
+      const roleLabels = criteria.rolePerson.roles.map((r) => r.label);
+      parts.push(roleLabels.length > 1 ? `${roleLabels.join(" or ")} is ${name}` : `${roleLabels[0]} is ${name}`);
+    }
+    if (criteria.country) parts.push(`from ${criteria.country}`);
+    if (criteria.withinDays != null) parts.push(`created in the last ${criteria.withinDays} day${criteria.withinDays === 1 ? "" : "s"}`);
+    if (!parts.length && criteria.isAll) parts.push("all contacts");
+    return parts.join(", ") || "matching your request";
+  }
+
+  function exportContactsToCsv(contacts, fileNameHint) {
+    const escapeCsvValue = (v) => {
+      const s = v == null ? "" : String(v);
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = COLUMNS.map((col) => escapeCsvValue(col.label)).join(",");
+    const rows = contacts.map((c) =>
+      COLUMNS.map((col) => escapeCsvValue(col.chip ? col.chip(c).join(", ") : col.get(c))).join(",")
+    );
+    const csv = [header, ...rows].join("\r\n");
+    // Leading BOM so Excel opens the file as UTF-8 instead of mis-decoding accented names.
+    const blob = new Blob([String.fromCharCode(65279) + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName = (fileNameHint || "contacts").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+    a.href = url;
+    a.download = `skrine-contacts-${safeName || "export"}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Shared by both "export" and "list" requests - same matching/disambiguation/fuzzy-
+  // correction logic either way, only the final action (download a file vs. answer in chat)
+  // differs, via the `action` parameter and the various copilotPending* state below.
+  function handleContactActionRequest(text, action) {
+    copilotHistory.push({ role: "user", content: text });
+    renderCopilotMessages();
+    if (!userCanViewAllContacts) {
+      copilotHistory.push({ role: "assistant", content: "Sorry, you are not allow to export any contact from the Client Contact Management System. If you feel this is a mistake please contact the Tech & Automation Team for clarification. Thanks" });
+      renderCopilotMessages();
+      return;
+    }
+    const scope = currentScopeContacts();
+    let matches = findContactMatchesInText(text, scope);
+    let criteria = parseExportCriteria(text, scope);
+
+    // A bare follow-up like "export it for me" names no one and describes no filter of its
+    // own - fall back to whatever the user was actually just asking/talking about, most
+    // recent first, instead of giving up.
+    if (!matches.length && !criteria.any) {
+      const priorUserMessages = copilotHistory
+        .filter((m) => m.role === "user")
+        .slice(0, -1)
+        .reverse();
+      for (const msg of priorUserMessages) {
+        const priorMatches = findContactMatchesInText(msg.content, scope);
+        if (priorMatches.length) {
+          matches = priorMatches;
+          break;
+        }
+        const priorCriteria = parseExportCriteria(msg.content, scope);
+        if (priorCriteria.any) {
+          criteria = priorCriteria;
+          break;
+        }
+      }
+    }
+
+    if (matches.length === 1) {
+      if (action === "export") finishContactExport(matches[0]);
+      else finishSingleContactList(matches[0]);
+      return;
+    }
+    if (matches.length > 1) {
+      copilotPendingAction = action;
+      copilotPendingExportCandidates = matches;
+      copilotHistory.push({ role: "assistant", content: describeExportCandidates(matches) });
+      renderCopilotMessages();
+      return;
+    }
+
+    // No specific person named - try a criteria-based match instead (recency, country, "my
+    // contacts", "all contacts", a name under partner/lawyer/owner/creator, or combinations).
+    if (!criteria.any) {
+      const suggestion = findFuzzyNameSuggestion(text, collectFuzzyNameCandidates(scope));
+      if (suggestion) {
+        copilotPendingAction = action;
+        copilotPendingFuzzySuggestion = suggestion;
+        const roleHint = suggestion.kind === "role" ? ` (${suggestion.roleLabel})` : "";
+        copilotHistory.push({ role: "assistant", content: `I couldn't find an exact match - did you mean "${suggestion.name}"${roleHint}?` });
+        renderCopilotMessages();
+        return;
+      }
+      copilotHistory.push({
+        role: "assistant",
+        content: `I couldn't tell which contacts to ${action === "export" ? "export" : "list"} - try naming someone specifically, or describe a filter like a country, a time period (e.g. "created in the last 7 days"), or say "all contacts".`,
+      });
+      renderCopilotMessages();
+      return;
+    }
+
+    // A bare name matched under more than one role (partner/lawyer/owner/creator) with no
+    // role keyword given - ask which was meant rather than guessing and missing some.
+    if (criteria.rolePerson && criteria.rolePerson.ambiguous) {
+      copilotPendingAction = action;
+      copilotPendingRoleClarification = criteria;
+      copilotHistory.push({ role: "assistant", content: describeRoleClarification(scope, criteria) });
+      renderCopilotMessages();
+      return;
+    }
+
+    if (action === "export") finishCriteriaExport(scope, criteria);
+    else finishCriteriaList(scope, criteria);
+  }
+
   async function sendCopilotMessage() {
     const input = document.getElementById("copilot-input");
     const text = input.value.trim();
@@ -2579,38 +3031,70 @@
 
     if (copilotPendingExportCandidates) {
       const candidates = copilotPendingExportCandidates;
+      const action = copilotPendingAction;
       const resolved = resolveExportDisambiguation(text, candidates);
       if (resolved) {
         copilotPendingExportCandidates = null;
         copilotHistory.push({ role: "user", content: text });
         renderCopilotMessages();
-        finishContactExport(resolved);
+        if (action === "export") finishContactExport(resolved);
+        else finishSingleContactList(resolved);
         return;
       }
       copilotPendingExportCandidates = null;
     }
 
+    if (copilotPendingRoleClarification) {
+      const pendingCriteria = copilotPendingRoleClarification;
+      const action = copilotPendingAction;
+      const resolvedCriteria = resolveRoleClarification(text, pendingCriteria);
+      if (resolvedCriteria) {
+        copilotPendingRoleClarification = null;
+        copilotHistory.push({ role: "user", content: text });
+        renderCopilotMessages();
+        if (action === "export") finishCriteriaExport(currentScopeContacts(), resolvedCriteria);
+        else finishCriteriaList(currentScopeContacts(), resolvedCriteria);
+        return;
+      }
+      copilotPendingRoleClarification = null;
+    }
+
+    if (copilotPendingFuzzySuggestion) {
+      const pending = copilotPendingFuzzySuggestion;
+      const action = copilotPendingAction;
+      copilotPendingFuzzySuggestion = null;
+      const t = text.toLowerCase().trim();
+      const isYes = /^(yes|yeah|yep|correct|right|ya|yup)\b/.test(t) || t === pending.name.toLowerCase();
+      if (isYes) {
+        copilotHistory.push({ role: "user", content: text });
+        renderCopilotMessages();
+        const scope = currentScopeContacts();
+        if (pending.kind === "contact") {
+          const contact = scope.find((c) => contactFullName(c).toLowerCase() === pending.name.toLowerCase());
+          if (contact) {
+            if (action === "export") finishContactExport(contact);
+            else finishSingleContactList(contact);
+          }
+        } else {
+          const criteria = {
+            rolePerson: { roles: [{ role: pending.roleKey, label: pending.roleLabel, name: pending.name }], ambiguous: false },
+            any: true,
+          };
+          if (action === "export") finishCriteriaExport(scope, criteria);
+          else finishCriteriaList(scope, criteria);
+        }
+        return;
+      }
+      // Not a "yes" - fall through and handle whatever they actually said as a fresh message.
+    }
+
     if (looksLikeContactExportRequest(text)) {
-      copilotHistory.push({ role: "user", content: text });
-      renderCopilotMessages();
-      if (!userCanViewAllContacts) {
-        copilotHistory.push({ role: "assistant", content: "Sorry, exporting a contact to Excel isn't available for your account - it's limited to the \"view all contacts\" access group." });
-        renderCopilotMessages();
-        return;
-      }
-      const matches = findContactMatchesInText(text, currentScopeContacts());
-      if (!matches.length) {
-        copilotHistory.push({ role: "assistant", content: "I couldn't find a contact matching that name - could you check the spelling or try their full name?" });
-        renderCopilotMessages();
-        return;
-      }
-      if (matches.length === 1) {
-        finishContactExport(matches[0]);
-        return;
-      }
-      copilotPendingExportCandidates = matches;
-      copilotHistory.push({ role: "assistant", content: describeExportCandidates(matches) });
-      renderCopilotMessages();
+      handleContactActionRequest(text, "export");
+      return;
+    }
+
+    if (looksLikeContactListRequest(text)) {
+      handleContactActionRequest(text, "list");
       return;
     }
 
