@@ -72,7 +72,9 @@
     margin:0;
     background-color:var(--page);
     font-family:'Inter',sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;
+    transition:margin-right .22s ease;
   }
+  body.copilot-open{margin-right:440px;}
   .hidden{display:none !important;}
   button,input,select,textarea{font-family:inherit;}
   button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--red);outline-offset:2px;}
@@ -284,7 +286,8 @@
   .copilot-quick-ask input{flex:1;border:none;background:none;font-size:13px;color:var(--ink);outline:none;min-width:0;}
   .copilot-quick-ask input::placeholder{color:var(--faint);}
   .copilot-quick-ask button{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--red);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;}
-  .copilot-panel{position:fixed;bottom:92px;right:24px;width:360px;max-width:calc(100vw - 32px);height:500px;max-height:calc(100vh - 140px);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 56px rgba(20,18,15,0.24);display:flex;flex-direction:column;overflow:hidden;z-index:1499;animation:modalPop .18s ease;}
+  .copilot-panel{position:fixed;top:0;right:0;bottom:0;width:440px;max-width:100vw;height:100vh;background:var(--card);border:none;border-left:1px solid var(--line);border-radius:0;box-shadow:-16px 0 40px rgba(20,18,15,0.16);display:flex;flex-direction:column;overflow:hidden;z-index:1499;animation:copilotSlideIn .22s ease;}
+  @keyframes copilotSlideIn{from{transform:translateX(100%);}to{transform:translateX(0);}}
   .copilot-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--red);color:#fff;flex:0 0 auto;}
   .copilot-title{font-family:var(--font-display);font-weight:800;font-size:14px;}
   .copilot-subtitle{font-size:11px;opacity:.85;margin-top:1px;}
@@ -310,7 +313,8 @@
     .brand-eyebrow{display:none;}
     .form-grid{grid-template-columns:1fr;}
     .controls button.primary{margin-left:0;}
-    .copilot-panel{right:16px;bottom:84px;width:calc(100vw - 32px);}
+    .copilot-panel{width:100vw;}
+    body.copilot-open{margin-right:0;}
     .copilot-launcher{right:16px;bottom:84px;width:calc(100vw - 32px);}
     .copilot-fab{right:16px;bottom:16px;}
   }
@@ -515,7 +519,7 @@
     //    user_impersonation permission, admin-consented (a third API, distinct from both
     //    Microsoft Graph and the SharePoint API used elsewhere in this file).
     azureOpenAI: {
-      endpoint: "https://skrine-copilot.services.ai.azure.com/openai/v1",
+      endpoint: "https://skrineapps-foundry.services.ai.azure.com/openai/v1",
       deploymentName: "gpt-4.1-mini",
       scopes: ["https://cognitiveservices.azure.com/.default"],
     },
@@ -2396,30 +2400,57 @@
     return !CONFIG.azureOpenAI.endpoint.includes("YOUR-RESOURCE-NAME") && !CONFIG.azureOpenAI.deploymentName.includes("YOUR-DEPLOYMENT-NAME");
   }
 
-  // Grounds the assistant in the currently loaded contacts without sending every individual
-  // record (expensive in tokens, and needlessly exposes more data than most questions need):
-  // always include aggregate stats (counts by country/practice area/etc., the same numbers
-  // the KPI cards and chart already show), and only pull in specific contacts' details when
-  // the user's own message plausibly names one (a simple keyword match against the same
-  // fields the search box already searches).
+  // Below this many contacts, it's cheap enough (in tokens) to just hand the model every
+  // field of every contact the user is permitted to see, so there are no blind spots at all.
+  // Above it (typically only "view all contacts" admins, with the whole firm's contacts),
+  // fall back to aggregate stats plus keyword-matched contacts instead of a raw dump.
+  const COPILOT_FULL_DUMP_MAX_CONTACTS = 150;
+
+  function contactFullDetailLine(c) {
+    return `- ${contactFullName(c)}, ${c.position || "n/a"} at ${c.companyName || "n/a"} (${c.country || "n/a"}); ` +
+      `email ${c.email || "n/a"}; phone ${c.phoneNumber || "n/a"}; partner in charge: ${c.partner || "n/a"}; ` +
+      `lawyer(s): ${c.lawyers.join(", ") || "n/a"}; practice area(s): ${c.practiceArea.join(", ") || "n/a"}; ` +
+      `greeting card(s): ${c.greetingCards.join(", ") || "n/a"}; alumni/foreign law: ${c.alumniForeign || "n/a"}; ` +
+      `created ${formatDateTime(c.created) || "n/a"} by ${c.createdBy || "n/a"}`;
+  }
+
+  // Grounds the assistant in the contacts THIS signed-in user is permitted to see -
+  // currentScopeContacts(), never the unrestricted allContacts - so a "my contacts only" user
+  // can't use chat to learn about contacts the table itself would hide from them.
   function buildCopilotContext(userMessage) {
-    const scope = allContacts;
+    const scope = currentScopeContacts();
+
+    if (scope.length <= COPILOT_FULL_DUMP_MAX_CONTACTS) {
+      const rows = scope.map(contactFullDetailLine).join("\n");
+      return `You have full access to every contact visible to this user (${scope.length} total). Full contact list:\n${rows}`;
+    }
+
+    // Too many contacts to dump raw (this user can see the whole firm's list) - fall back to
+    // aggregate stats (counts by country/practice area/etc., the same numbers the KPI cards
+    // and chart already show) plus specific contacts' details when the user's own message
+    // plausibly names one (a simple keyword match against the same fields the search box
+    // already searches).
+    const allEntries = (map) =>
+      [...map.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}: ${v}`).join(", ") || "(none)";
     const topEntries = (map, n) =>
       [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, n).map(([k, v]) => `${k}: ${v}`).join(", ") || "(none)";
 
     const byCountry = new Map();
     const byPracticeArea = new Map();
+    const byCreatedBy = new Map();
     scope.forEach((c) => {
       if (c.country) byCountry.set(c.country, (byCountry.get(c.country) || 0) + 1);
       (c.practiceArea.length ? c.practiceArea : ["(Unspecified)"]).forEach((p) => byPracticeArea.set(p, (byPracticeArea.get(p) || 0) + 1));
+      if (c.createdBy) byCreatedBy.set(c.createdBy, (byCreatedBy.get(c.createdBy) || 0) + 1);
     });
     const distinctCompanies = new Set(scope.map((c) => c.companyName).filter(Boolean)).size;
 
     const summary = [
       `Total contacts visible to this user: ${scope.length}.`,
       `Distinct companies: ${distinctCompanies}.`,
-      `Distinct countries: ${byCountry.size}. Contacts by country (top 10): ${topEntries(byCountry, 10)}.`,
+      `Distinct countries: ${byCountry.size}. Contacts by country (all): ${allEntries(byCountry)}.`,
       `Contacts by practice area (top 10): ${topEntries(byPracticeArea, 10)}.`,
+      `Contacts by who created them (top 10): ${topEntries(byCreatedBy, 10)}.`,
       `Contacts on a greeting card list: ${scope.filter((c) => c.greetingCards.length > 0).length}.`,
     ].join("\n");
 
@@ -2429,11 +2460,7 @@
           .filter((c) => words.some((w) => [c.firstName, c.lastName, c.companyName, c.position, c.country].join(" ").toLowerCase().includes(w)))
           .slice(0, 5)
       : [];
-    const matchesText = matches.length
-      ? matches
-          .map((c) => `- ${contactFullName(c)}, ${c.position || "n/a"} at ${c.companyName || "n/a"} (${c.country || "n/a"}); email ${c.email || "n/a"}; practice area(s): ${c.practiceArea.join(", ") || "n/a"}`)
-          .join("\n")
-      : null;
+    const matchesText = matches.length ? matches.map(contactFullDetailLine).join("\n") : null;
 
     return matchesText ? `${summary}\n\nContacts that might be relevant to this question:\n${matchesText}` : summary;
   }
@@ -2620,7 +2647,11 @@
   function openCopilotPanel() {
     copilotOpen = true;
     document.getElementById("copilot-panel").classList.remove("hidden");
-    document.getElementById("copilot-fab").classList.add("open");
+    // The panel is now a full-height right-hand sidebar rather than a floating card, so the
+    // FAB (still docked in the bottom-right corner) would otherwise sit on top of it, and the
+    // rest of the page pushes over to make room instead of the sidebar overlapping it.
+    document.getElementById("copilot-fab").classList.add("hidden");
+    document.body.classList.add("copilot-open");
     if (!copilotHistory.length) {
       copilotHistory.push({ role: "assistant", content: "Hi, I'm your Skrine CRM Copilot. Ask me about your contacts - e.g. \"how many contacts do we have in Malaysia\" or \"what practice areas are most common\"." });
       renderCopilotMessages();
@@ -2633,6 +2664,8 @@
       copilotOpen = false;
       document.getElementById("copilot-panel").classList.add("hidden");
       document.getElementById("copilot-fab").classList.remove("open");
+      document.getElementById("copilot-fab").classList.remove("hidden");
+      document.body.classList.remove("copilot-open");
     } else {
       openCopilotPanel();
     }
