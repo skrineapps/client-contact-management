@@ -148,7 +148,8 @@
   .search-wrap input::placeholder{color:var(--faint);}
   .search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:13px;pointer-events:none;}
 
-  .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 20px rgba(20,18,15,0.06);}
+  .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 20px rgba(20,18,15,0.06);scrollbar-width:none;-ms-overflow-style:none;}
+  .table-wrap::-webkit-scrollbar{display:none;}
   /* A second, thin horizontal scrollbar kept in sync with the real one (see
      syncTableHScrollShadow). Sticks to the bottom of the viewport while the table is anywhere
      on screen, so the user can scroll left/right without first scrolling all the way down past
@@ -2610,10 +2611,34 @@
     });
   }
 
-  function renderUserChip() {
-    document.getElementById("avatar").textContent = initialsOf(currentUser.displayName);
+  // The photo endpoint returns raw image bytes (not JSON), unlike every other Graph call in
+  // this file, so it needs its own fetch rather than going through graphGet. A 404 here is
+  // normal and expected for any account that simply has no profile photo set in Entra ID/
+  // Outlook - falls back to the initials circle already shown, rather than treating it as
+  // an error.
+  async function fetchUserPhotoUrl() {
+    try {
+      const token = await getGraphToken();
+      const res = await fetch("https://graph.microsoft.com/v1.0/me/photo/$value", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return URL.createObjectURL(blob);
+    } catch (e) {
+      console.warn("[Contacts] Could not load profile photo - showing initials instead.", e);
+      return null;
+    }
+  }
+
+  async function renderUserChip() {
+    const avatar = document.getElementById("avatar");
+    avatar.textContent = initialsOf(currentUser.displayName);
     document.getElementById("user-name").textContent = currentUser.displayName || "";
     document.getElementById("user-email").textContent = currentUser.mail || currentUser.userPrincipalName || "";
+
+    const photoUrl = await fetchUserPhotoUrl();
+    if (photoUrl) {
+      avatar.innerHTML = `<img src="${photoUrl}" alt="${escapeHtml(currentUser.displayName || "")}" />`;
+    }
   }
 
   let searchDebounceTimer = null;
