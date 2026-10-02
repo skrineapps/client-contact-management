@@ -442,7 +442,11 @@
   <div class="modal" id="modal-box"></div>
 </div>
 
-<button type="button" class="copilot-fab" id="copilot-fab" aria-label="Open Copilot">
+<!-- AI chat (Copilot) disabled - commented out, not deleted. The backing Azure resource was
+     torn down; re-enable by removing this comment wrapper and restoring the wireCopilot()
+     call + FAB-reveal logic in bootstrapData() (see crm.aspx JS, search "AI chat disabled"). -->
+<!--
+<button type="button" class="copilot-fab hidden" id="copilot-fab" aria-label="Open Copilot">
   <img src="https://raw.githubusercontent.com/skrineapps/skr-background-assets/main/Copilot-Logo.png" alt="Copilot" />
 </button>
 
@@ -483,6 +487,7 @@
     <button type="button" class="copilot-send" id="copilot-send" aria-label="Send"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i></button>
   </div>
 </div>
+-->
 
 <script>
 (function () {
@@ -3745,7 +3750,14 @@
     renderUserChip();
     initTable();
     wireControls();
-    wireCopilot();
+    // AI chat disabled - the Copilot HTML (FAB/launcher/panel) is commented out above, and
+    // its elements no longer exist in the DOM, so wireCopilot() must not be called (it would
+    // throw trying to attach listeners to elements that aren't there). Re-enable by restoring
+    // both the HTML block and this call once the backing Azure resource is back.
+    // if (userCanViewAllContacts) {
+    //   document.getElementById("copilot-fab").classList.remove("hidden");
+    //   wireCopilot();
+    // }
     renderAll();
   }
 
