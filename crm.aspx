@@ -183,6 +183,11 @@
   .col-menu-range-input:focus{outline:2px solid var(--red);outline-offset:1px;}
   .col-menu-value{display:flex !important;align-items:center !important;gap:8px;padding:6px 9px;border-radius:6px;font-size:12.5px;cursor:pointer;}
   .col-menu-value:hover{background:var(--page);}
+  /* Needs its own !important to win over .col-menu-value's display:flex !important above -
+     a plain inline style.display="none" (what the search box used to set directly) can never
+     beat a stylesheet rule that's already !important, which is why the search box silently
+     stopped hiding anything once that flex rule was added for the checkbox layout fix. */
+  .col-menu-value.filtered-out{display:none !important;}
   .col-menu-value input[type="checkbox"]{position:static !important;opacity:1 !important;appearance:auto !important;-webkit-appearance:checkbox !important;float:none !important;display:inline-block !important;width:16px !important;height:16px !important;min-width:16px !important;margin:0 !important;padding:0 !important;flex:0 0 auto !important;accent-color:var(--red);}
   .col-menu-selectall{font-weight:600;border-bottom:1px solid var(--line);margin-bottom:2px;padding-bottom:8px;}
   .col-menu-footer{display:flex;justify-content:space-between;gap:8px;padding:8px 4px 2px;border-top:1px solid var(--line);margin-top:6px;}
@@ -2056,7 +2061,7 @@
     menu.querySelector(".col-menu-search").addEventListener("input", (e) => {
       const term = e.target.value.toLowerCase();
       menu.querySelectorAll(".col-menu-values .col-menu-value").forEach((label) => {
-        label.style.display = label.textContent.toLowerCase().includes(term) ? "" : "none";
+        label.classList.toggle("filtered-out", !label.textContent.toLowerCase().includes(term));
       });
     });
     menu.querySelector('[data-action="apply"]').addEventListener("click", () => {
