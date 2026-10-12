@@ -142,6 +142,8 @@
   .controls button.primary:hover{background:var(--red);color:#fff;}
   .controls button.primary:hover i{transform:none;}
   .controls button:disabled{opacity:.6;cursor:not-allowed;}
+  #export-excel-btn{background:#1d7044;border-color:#1d7044;color:#fff;}
+  #export-excel-btn:hover{background:#17602f;border-color:#17602f;color:#fff;}
   .controls button.spinning i{animation:spin .8s linear infinite;}
   .search-wrap{position:relative;flex:1;min-width:220px;}
   .search-wrap input{width:100%;padding:9px 16px 9px 36px;border:1px solid var(--line);background:var(--card);font-size:13px;border-radius:8px;color:var(--ink);}
@@ -250,6 +252,7 @@
   .field-grid dt{color:var(--muted);}
   .field-grid dd{margin:0;color:var(--ink);display:flex;flex-wrap:wrap;gap:6px;align-items:center;}
   .modal .close-row{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+  .export-filter-list{margin:10px 0 0;padding-left:20px;font-size:13.5px;color:var(--ink);line-height:1.6;}
   .btn{border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:700;padding:10px 22px;border-radius:8px;cursor:pointer;color:var(--ink);transition:border-color .15s ease,transform .15s ease;}
   .btn.primary{background:var(--red);border-color:var(--red);color:#fff;}
   .btn:hover{border-color:var(--red);transform:translateY(-1px);}
@@ -412,6 +415,7 @@
       </div>
       <button type="button" id="clear-filters">Clear filters</button>
       <button type="button" id="refresh-contacts" title="Reload contacts from SharePoint"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh</button>
+      <button type="button" id="export-excel-btn"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Export to Excel</button>
       <button type="button" id="add-contact-btn" class="primary"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Contact</button>
     </div>
 
@@ -628,6 +632,8 @@
     { key: "alumniForeign", label: "Alumni / Foreign Law", cellClass: "muted-cell", get: (c) => c.alumniForeign },
     { key: "lawyers", label: "Lawyers", get: (c) => c.lawyers.join(", "), chip: (c) => c.lawyers },
     { key: "created", label: "Created Date", cellClass: "muted-cell", get: (c) => formatDateTime(c.created), filterType: "date" },
+    { key: "createdBy", label: "Created By", cellClass: "muted-cell", get: (c) => c.createdBy },
+    { key: "modifiedBy", label: "Modified By", cellClass: "muted-cell", get: (c) => c.modifiedBy },
   ];
 
   // These columns keep a fixed pixel width always - they never grow/shrink with the viewport
@@ -1056,6 +1062,10 @@
       // CreatedByEmailText text column.
       createdBy: (item.createdBy && item.createdBy.user && item.createdBy.user.displayName) || "",
       createdByEmail: (item.createdBy && item.createdBy.user && item.createdBy.user.email) || "",
+      // item.lastModifiedBy is the same kind of Graph-resolved item metadata as createdBy
+      // above (who last edited the list item), not a custom column.
+      modifiedBy: (item.lastModifiedBy && item.lastModifiedBy.user && item.lastModifiedBy.user.displayName) || "",
+      modifiedByEmail: (item.lastModifiedBy && item.lastModifiedBy.user && item.lastModifiedBy.user.email) || "",
       contactOwner: asPlainText(getField(f, "contactOwner")),
       created: item.createdDateTime || "",
       modified: item.lastModifiedDateTime || "",
@@ -2385,6 +2395,8 @@
       lawyers: values.lawyers.map((email) => personOptionDisplayName(lawyerOptions, email)),
       lawyerEmails: values.lawyers,
       modified: new Date().toISOString(),
+      modifiedBy: currentUser.displayName || "",
+      modifiedByEmail: currentUser.mail || currentUser.userPrincipalName || "",
     };
   }
 
@@ -2680,6 +2692,7 @@
     document.getElementById("page-prev").addEventListener("click", () => { currentPage--; renderList(); });
     document.getElementById("page-next").addEventListener("click", () => { currentPage++; renderList(); });
     document.getElementById("add-contact-btn").addEventListener("click", openAddContactForm);
+    document.getElementById("export-excel-btn").addEventListener("click", openExportConfirmModal);
 
     document.getElementById("overlay").addEventListener("click", (e) => { if (e.target.id === "overlay") closeModal(); });
 
@@ -2957,15 +2970,108 @@
     return `#${c.id} ${withCompany}`;
   }
 
+  // Builds a short, human-readable description of every active search/column filter, for the
+  // export confirmation modal below. Mirrors filteredContacts()'s own filter-shape handling
+  // (range/date/checklist) so the description always matches what will actually be exported.
+  function describeActiveFilters() {
+    const parts = [];
+    if (searchTerm) parts.push(`search "${searchTerm}"`);
+    COLUMNS.forEach((col) => {
+      const filter = columnFilterValues[col.key];
+      if (!filter) return;
+      if (col.filterType === "range") {
+        if (filter.min == null && filter.max == null) return;
+        const bits = [];
+        if (filter.min != null) bits.push(`>= ${filter.min}`);
+        if (filter.max != null) bits.push(`<= ${filter.max}`);
+        parts.push(`${col.label} ${bits.join(" and ")}`);
+        return;
+      }
+      if (col.filterType === "date") {
+        if (filter.year == null && filter.month == null) return;
+        const bits = [];
+        if (filter.month != null) bits.push(MONTH_NAMES[filter.month]);
+        if (filter.year != null) bits.push(String(filter.year));
+        parts.push(`${col.label}: ${bits.join(" ")}`);
+        return;
+      }
+      if (filter.size) {
+        const values = [...filter];
+        const shown = values.slice(0, 3).join(", ");
+        const more = values.length > 3 ? ` (+${values.length - 3} more)` : "";
+        parts.push(`${col.label}: ${shown}${more}`);
+      }
+    });
+    return parts;
+  }
+
+  // Toolbar "Export to Excel" - exports exactly what the table is currently showing (search +
+  // column filters applied, same sort order), after confirming with the user what that
+  // actually includes. Available to every user, since it only ever exports contacts already
+  // visible to them (currentScopeContacts()'s own permission scope still applies via
+  // filteredContacts()) - there's no broader access being granted here.
+  function openExportConfirmModal() {
+    const rows = filteredContacts().slice().sort(compareContactsForSort);
+    const filters = describeActiveFilters();
+    const count = rows.length;
+
+    const message = filters.length
+      ? `<p>Export ${count} contact${count === 1 ? "" : "s"} filtered by:</p><ul class="export-filter-list">${filters.map((f) => `<li>${escapeHtml(f)}</li>`).join("")}</ul>`
+      : `<p>No filters are applied - export all ${count} contact${count === 1 ? "" : "s"}?</p>`;
+
+    document.getElementById("modal-box").innerHTML = `
+      <div class="modal-top">
+        <h2>Export to Excel</h2>
+        <button class="close" id="modal-close" aria-label="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      ${message}
+      <div class="close-row">
+        <button type="button" class="btn" id="export-cancel-btn">Cancel</button>
+        <button type="button" class="btn primary" id="export-confirm-btn" ${count ? "" : "disabled"}>Export</button>
+      </div>`;
+    document.getElementById("overlay").classList.remove("hidden");
+
+    document.getElementById("modal-close").addEventListener("click", closeModal);
+    document.getElementById("export-cancel-btn").addEventListener("click", closeModal);
+    document.getElementById("export-confirm-btn").addEventListener("click", () => {
+      const fileNameHint = filters.length ? filters.join("-") : "all-contacts";
+      exportContactsToExcel(rows, fileNameHint);
+      closeModal();
+    });
+  }
+
   function exportContactsToExcel(contacts, fileNameHint) {
     const header = COLUMNS.map((col) => col.label);
     const rows = contacts.map((c) => COLUMNS.map((col) => (col.chip ? col.chip(c).join(", ") : (col.get(c) == null ? "" : col.get(c)))));
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     ws["!cols"] = COLUMNS.map((col) => ({ wch: Math.max(10, col.label.length + 4) }));
+
+    // Filter dropdown arrows on the header row - reliably supported by the free SheetJS
+    // Community Edition build we're using. A genuine Excel "Table" (Format as Table, with
+    // banded-row styling) is NOT supported by this build at all (that's a Pro-only feature of
+    // this library) - autofilter is the closest equivalent actually achievable here.
+    const lastCol = XLSX.utils.encode_col(COLUMNS.length - 1);
+    const lastRow = rows.length + 1;
+    ws["!autofilter"] = { ref: `A1:${lastCol}${lastRow}` };
+
+    // Best-effort header styling (bold white text on a red fill). Writing cell styles into
+    // .xlsx is also not officially supported by the free Community Edition (another Pro-only
+    // feature) - this may or may not actually render depending on the exact build. Harmless
+    // either way; the data and the filter above work regardless.
+    for (let col = 0; col < COLUMNS.length; col++) {
+      const cellRef = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (ws[cellRef]) {
+        ws[cellRef].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { patternType: "solid", fgColor: { rgb: "B3261E" } },
+        };
+      }
+    }
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Contacts");
     const safeName = (fileNameHint || "contact").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
-    XLSX.writeFile(wb, `skrine-${safeName || "contact"}-contact.xlsx`);
+    XLSX.writeFile(wb, `skrine-${safeName || "contact"}-contact.xlsx`, { cellStyles: true });
   }
 
   function exportContactsToCsv(contacts, fileNameHint) {
