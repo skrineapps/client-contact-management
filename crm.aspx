@@ -158,7 +158,13 @@
      every row to reach the table's own scrollbar. */
   .table-hscroll-shadow{position:sticky;bottom:0;overflow-x:auto;overflow-y:hidden;height:16px;background:var(--card);border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;z-index:20;}
   #table-hscroll-shadow-inner{height:1px;}
-  .contacts-table{table-layout:fixed;width:100%;min-width:2080px;border-collapse:collapse;font-size:13px;}
+  /* table-layout:fixed only reliably sizes columns from the <col> widths when the table itself
+     has an explicit width (not "auto") - otherwise some browsers fall back to content-based
+     sizing and later columns can get clipped. initTable() sets this element's inline width to
+     the exact sum of all column widths (see defaultColumnWidths), so every column gets the
+     width actually given to it and the table can end up wider than the viewport; .table-wrap's
+     horizontal scroll (plus the synced shadow scrollbar) handles that intentionally. */
+  .contacts-table{table-layout:fixed;border-collapse:collapse;font-size:13px;width:max-content;}
   .contacts-table thead th{position:relative;text-align:left;padding:11px 18px 11px 16px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#fff;font-weight:700;background:var(--red);overflow:hidden;border-right:1px solid rgba(255,255,255,0.16);}
   .contacts-table thead th:last-child{border-right:none;}
   .th-inner{display:flex;align-items:center;justify-content:space-between;gap:6px;}
@@ -420,7 +426,7 @@
     </div>
 
     <div class="table-wrap" id="table-wrap">
-      <table class="contacts-table">
+      <table class="contacts-table" id="contacts-table">
         <colgroup id="col-group"></colgroup>
         <thead id="table-head"></thead>
         <tbody id="contacts-list"></tbody>
@@ -513,14 +519,18 @@
     // Charge / Lawyers security groups below. Both need to be added to the app registration
     // and admin-consented in Azure AD, or the relevant feature fails outright.
     graphScopes: ["User.Read", "Sites.ReadWrite.All", "GroupMember.Read.All"],
-    // Members of this Azure AD security group see every contact under "My Contacts" instead
-    // of just the ones matched via Lawyers/CreatedByEmailText. Read from the ID token's
-    // "groups" claim (Token configuration > Add groups claim > Security groups in the app
-    // registration) - no extra Graph permission needed.
-    viewAllContactsGroupId: "56587622-97af-4e39-bbc2-cb6b52d40765",
+    // Members of any of these Azure AD security groups (the admin team) see every contact
+    // under "My Contacts" instead of just the ones matched via Lawyers/CreatedByEmailText.
+    // Read from the ID token's "groups" claim (Token configuration > Add groups claim >
+    // Security groups in the app registration) - no extra Graph permission needed.
+    viewAllContactsGroupIds: [
+      "acd90a40-bf18-4718-9493-9393fb15cba9",
+      "56587622-97af-4e39-bbc2-cb6b52d40765",
+      "6113f439-7c3f-48fe-99fb-b61d030c205a",
+    ],
     // Export to Excel is restricted to members of either of these groups - same ID-token
-    // "groups" claim mechanism as viewAllContactsGroupId above, just checked against this
-    // separate list instead of a single ID.
+    // "groups" claim mechanism as viewAllContactsGroupIds above, just checked against this
+    // separate list.
     exportExcelGroupIds: ["56587622-97af-4e39-bbc2-cb6b52d40765", "acd90a40-bf18-4718-9493-9393fb15cba9"],
     // Microsoft Graph's SharePoint list-items API generally can't resolve Person/Group
     // columns (Lawyers, Partner In Charge) at all, with or without an explicit $select -
@@ -653,20 +663,30 @@
     phoneNumber: 130,
   };
 
-  // Each non-fixed column's share of the *remaining* width (after the fixed-width columns
-  // above take their set amount), proportional to its header title's length - a few extra
-  // "characters" are padded in per column to leave room for the filter icon and padding so
-  // very short headers aren't crushed. Percentages sum to ~100 among the flexible columns.
+  // Starting pixel width for every other column - generous enough to comfortably fit the
+  // header title plus typical real content (chip columns like Practice Area/Lawyers can hold
+  // several long values at once), not squeezed to share whatever room happens to be left on
+  // screen. The table is allowed to grow wider than the viewport and scroll horizontally
+  // rather than cramming every column down to illegible widths - still all resizable by hand
+  // afterward via the drag handles.
+  const DEFAULT_FLEXIBLE_COLUMN_WIDTHS = {
+    salutation: 110,
+    country: 150,
+    partner: 170,
+    practiceArea: 260,
+    greetingCards: 200,
+    alumniForeign: 190,
+    lawyers: 240,
+    created: 170,
+    createdBy: 180,
+    modifiedBy: 180,
+  };
+
   function defaultColumnWidths() {
-    const CHROME_CHARS = 4;
-    const flexibleCols = COLUMNS.filter((col) => !FIXED_WIDTH_COLUMNS[col.key]);
-    const weights = flexibleCols.map((col) => col.label.length + CHROME_CHARS);
-    const total = weights.reduce((a, b) => a + b, 0) || 1;
-    const flexPercents = weights.map((w) => (w / total) * 100);
-    let flexIndex = 0;
     return COLUMNS.map((col) => {
       if (FIXED_WIDTH_COLUMNS[col.key] != null) return { px: FIXED_WIDTH_COLUMNS[col.key] };
-      return { pct: flexPercents[flexIndex++] };
+      // Fallback only matters if a future column is added here without a width entry above.
+      return { px: DEFAULT_FLEXIBLE_COLUMN_WIDTHS[col.key] != null ? DEFAULT_FLEXIBLE_COLUMN_WIDTHS[col.key] : Math.max(140, col.label.length * 9) };
     });
   }
 
@@ -1549,14 +1569,26 @@
     list.sort((a, b) => a.displayName.localeCompare(b.displayName));
   }
 
-  // Reads the "groups" claim off the signed-in account's ID token (populated by the
-  // app registration's Token configuration > Add groups claim setting) to decide whether
-  // this user is in the "view all contacts" security group. If the account belongs to too
-  // many groups, Azure AD omits the claim entirely (an "overage" indicator shows up instead)
-  // and we fall back to the restrictive personal view rather than a Graph lookup.
-  function computeViewAllAccess() {
-    const claims = activeAccount && activeAccount.idTokenClaims;
-    const groups = claims && claims.groups;
+  // Checks group membership via Microsoft Graph's /me/checkMemberGroups instead of the ID
+  // token's "groups" claim. The token claim only ever reports Security groups (and optionally
+  // Microsoft 365 groups) - plain email/distribution groups (e.g. "BDC Support Team") never
+  // appear in it no matter how fresh the sign-in is, which made that approach silently fail
+  // for anyone whose access was granted through a distribution group. checkMemberGroups asks
+  // the directory directly, so it works for every group type and also picks up nested/
+  // transitive membership. Needs the GroupMember.Read.All scope (already in graphScopes).
+  async function fetchGroupMembershipIds(groupIds) {
+    const token = await getGraphToken();
+    const res = await fetch("https://graph.microsoft.com/v1.0/me/checkMemberGroups", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ groupIds }),
+    });
+    if (!res.ok) throw new Error(`checkMemberGroups failed (${res.status}): ${await res.text()}`);
+    const data = await res.json();
+    return data.value || [];
+  }
+
+  async function computeViewAllAccess() {
     const username = ((activeAccount && activeAccount.username) || "").toLowerCase();
     if (MANUAL_VIEW_ALL_CONTACTS_OPTIONS.some((email) => email.toLowerCase() === username)) {
       userCanViewAllContacts = true;
@@ -1564,22 +1596,17 @@
       console.log("[Contacts] userCanViewAllContacts/userCanExportExcel: true (manual override for", username, ")");
       return;
     }
-    console.log("[Contacts] ID token groups claim:", groups);
-    console.log("[Contacts] Looking for group ID:", CONFIG.viewAllContactsGroupId);
-    if (Array.isArray(groups)) {
-      userCanViewAllContacts = groups.includes(CONFIG.viewAllContactsGroupId);
-      userCanExportExcel = CONFIG.exportExcelGroupIds.some((id) => groups.includes(id));
+    const candidateGroupIds = [...new Set([...CONFIG.viewAllContactsGroupIds, ...CONFIG.exportExcelGroupIds])];
+    try {
+      const memberOf = await fetchGroupMembershipIds(candidateGroupIds);
+      console.log("[Contacts] Member of (via Graph checkMemberGroups):", memberOf);
+      userCanViewAllContacts = CONFIG.viewAllContactsGroupIds.some((id) => memberOf.includes(id));
+      userCanExportExcel = CONFIG.exportExcelGroupIds.some((id) => memberOf.includes(id));
       console.log("[Contacts] userCanViewAllContacts:", userCanViewAllContacts, "| userCanExportExcel:", userCanExportExcel);
-      return;
-    }
-    userCanViewAllContacts = false;
-    userCanExportExcel = false;
-    if (claims && claims._claim_names && claims._claim_names.groups) {
-      console.warn(
-        "[Contacts] This account belongs to too many groups for the ID token to list them directly (overage). Defaulting to personal contacts only - ask the app owner for a Graph-based fallback if this account should see all contacts."
-      );
-    } else {
-      console.warn("[Contacts] No 'groups' claim found on the ID token at all - see console tips for what to check.");
+    } catch (e) {
+      console.warn("[Contacts] checkMemberGroups failed - defaulting to personal contacts only.", e);
+      userCanViewAllContacts = false;
+      userCanExportExcel = false;
     }
   }
 
@@ -1868,6 +1895,8 @@
     document.getElementById("col-group").innerHTML = COLUMNS
       .map((col, i) => `<col style="width:${widths[i].px != null ? widths[i].px + "px" : widths[i].pct + "%"}">`)
       .join("");
+    const totalWidth = widths.reduce((sum, w) => sum + (w.px != null ? w.px : 0), 0);
+    document.getElementById("contacts-table").style.width = totalWidth + "px";
     document.getElementById("table-head").innerHTML = `
       <tr>
         ${COLUMNS.map((col, i) => `
@@ -3855,7 +3884,7 @@
   // ---------- bootstrap ----------
 
   async function bootstrapData() {
-    computeViewAllAccess();
+    await computeViewAllAccess();
     setLoadingText("Loading your data...");
     // The profile lookup and both group-member fetches don't depend on the list schema or
     // on each other - they're kicked off immediately and only awaited once everything else
