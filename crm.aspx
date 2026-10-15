@@ -169,7 +169,7 @@
   .th-resizer{position:absolute;top:0;right:0;bottom:0;width:8px;cursor:col-resize;background:transparent;touch-action:none;}
   .th-resizer:hover,.th-resizer.active{background:rgba(255,255,255,0.28);}
 
-  .col-menu{position:fixed;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 32px rgba(20,18,15,0.14);padding:6px;width:240px;z-index:2000;font-size:13px;}
+  .col-menu{position:fixed;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 32px rgba(20,18,15,0.14);padding:6px;width:240px;z-index:2000;font-size:13px;display:flex;flex-direction:column;overflow:hidden;}
   .col-menu.hidden{display:none;}
   .col-menu-item{display:flex;align-items:center;gap:9px;width:100%;background:none;border:none;padding:9px 11px;border-radius:8px;font-size:13px;color:var(--ink);cursor:pointer;text-align:left;}
   .col-menu-item i{width:14px;text-align:center;color:var(--muted);}
@@ -178,7 +178,7 @@
   .col-menu-divider{height:1px;background:var(--line);margin:6px 4px;}
   .col-menu-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700;padding:8px 11px 6px;}
   .col-menu-search{margin:0 6px 6px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:var(--page);color:var(--ink);font-size:12px;width:calc(100% - 12px);}
-  .col-menu-values{max-height:220px;overflow-y:auto;padding:2px 2px;}
+  .col-menu-values{flex:1 1 auto;min-height:60px;max-height:220px;overflow-y:auto;padding:2px 2px;}
   .col-menu-range{display:flex;gap:8px;padding:4px 6px 8px;}
   .col-menu-range label{flex:1;display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;}
   .col-menu-range-input{font-size:13px;font-weight:400;text-transform:none;letter-spacing:0;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:var(--page);color:var(--ink);width:100%;box-sizing:border-box;}
@@ -192,7 +192,7 @@
   .col-menu-value.filtered-out{display:none !important;}
   .col-menu-value input[type="checkbox"]{position:static !important;opacity:1 !important;appearance:auto !important;-webkit-appearance:checkbox !important;float:none !important;display:inline-block !important;width:16px !important;height:16px !important;min-width:16px !important;margin:0 !important;padding:0 !important;flex:0 0 auto !important;accent-color:var(--red);}
   .col-menu-selectall{font-weight:600;border-bottom:1px solid var(--line);margin-bottom:2px;padding-bottom:8px;}
-  .col-menu-footer{display:flex;justify-content:space-between;gap:8px;padding:8px 4px 2px;border-top:1px solid var(--line);margin-top:6px;}
+  .col-menu-footer{display:flex;justify-content:space-between;gap:8px;padding:8px 4px 2px;border-top:1px solid var(--line);margin-top:6px;flex-shrink:0;}
   .col-menu-footer button{border:1px solid var(--line);background:var(--card);font-size:12px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;color:var(--ink);}
   .col-menu-footer button.primary{background:var(--red);border-color:var(--red);color:#fff;}
 
@@ -415,7 +415,7 @@
       </div>
       <button type="button" id="clear-filters">Clear filters</button>
       <button type="button" id="refresh-contacts" title="Reload contacts from SharePoint"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh</button>
-      <button type="button" id="export-excel-btn"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Export to Excel</button>
+      <button type="button" id="export-excel-btn" class="hidden"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Export to Excel</button>
       <button type="button" id="add-contact-btn" class="primary"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Contact</button>
     </div>
 
@@ -518,6 +518,10 @@
     // "groups" claim (Token configuration > Add groups claim > Security groups in the app
     // registration) - no extra Graph permission needed.
     viewAllContactsGroupId: "56587622-97af-4e39-bbc2-cb6b52d40765",
+    // Export to Excel is restricted to members of either of these groups - same ID-token
+    // "groups" claim mechanism as viewAllContactsGroupId above, just checked against this
+    // separate list instead of a single ID.
+    exportExcelGroupIds: ["56587622-97af-4e39-bbc2-cb6b52d40765", "acd90a40-bf18-4718-9493-9393fb15cba9"],
     // Microsoft Graph's SharePoint list-items API generally can't resolve Person/Group
     // columns (Lawyers, Partner In Charge) at all, with or without an explicit $select -
     // it's a longstanding Graph limitation, not something fixable from the query string.
@@ -671,6 +675,7 @@
   let searchTerm = "";
   let currentPage = 1;
   let userCanViewAllContacts = false;
+  let userCanExportExcel = false;
 
   // Populated once at bootstrap: dropdown choices read from the SharePoint list's own Choice
   // columns, and the Partner In Charge / Lawyers people-pickers read from their AD security
@@ -1555,17 +1560,20 @@
     const username = ((activeAccount && activeAccount.username) || "").toLowerCase();
     if (MANUAL_VIEW_ALL_CONTACTS_OPTIONS.some((email) => email.toLowerCase() === username)) {
       userCanViewAllContacts = true;
-      console.log("[Contacts] userCanViewAllContacts: true (manual override for", username, ")");
+      userCanExportExcel = true;
+      console.log("[Contacts] userCanViewAllContacts/userCanExportExcel: true (manual override for", username, ")");
       return;
     }
     console.log("[Contacts] ID token groups claim:", groups);
     console.log("[Contacts] Looking for group ID:", CONFIG.viewAllContactsGroupId);
     if (Array.isArray(groups)) {
       userCanViewAllContacts = groups.includes(CONFIG.viewAllContactsGroupId);
-      console.log("[Contacts] userCanViewAllContacts:", userCanViewAllContacts);
+      userCanExportExcel = CONFIG.exportExcelGroupIds.some((id) => groups.includes(id));
+      console.log("[Contacts] userCanViewAllContacts:", userCanViewAllContacts, "| userCanExportExcel:", userCanExportExcel);
       return;
     }
     userCanViewAllContacts = false;
+    userCanExportExcel = false;
     if (claims && claims._claim_names && claims._claim_names.groups) {
       console.warn(
         "[Contacts] This account belongs to too many groups for the ID token to list them directly (overage). Defaulting to personal contacts only - ask the app owner for a Graph-based fallback if this account should see all contacts."
@@ -2005,7 +2013,23 @@
     const rect = anchorEl.getBoundingClientRect();
     menu.classList.remove("hidden");
     const menuWidth = menu.offsetWidth || 240;
-    menu.style.top = `${rect.bottom + 6}px`;
+    const margin = 12;
+    const spaceBelow = window.innerHeight - rect.bottom - margin;
+    const spaceAbove = rect.top - margin;
+    // The menu (sort buttons + search + checklist + footer) can be taller than the room left
+    // between the header and the bottom of the screen - previously it just overflowed past the
+    // viewport edge with the Clear filter/OK footer buttons cut off and unreachable. Now it's
+    // capped to whatever space is actually available, and flips to open upward instead when
+    // there's genuinely more room above the header than below it.
+    if (spaceBelow < 200 && spaceAbove > spaceBelow) {
+      menu.style.top = "auto";
+      menu.style.bottom = `${window.innerHeight - rect.top + 6}px`;
+      menu.style.maxHeight = `${Math.max(160, spaceAbove)}px`;
+    } else {
+      menu.style.bottom = "auto";
+      menu.style.top = `${rect.bottom + 6}px`;
+      menu.style.maxHeight = `${Math.max(160, spaceBelow)}px`;
+    }
     menu.style.left = `${Math.min(rect.left, window.innerWidth - menuWidth - 12)}px`;
     openMenuKey = col.key;
     updateFilterButtonStates();
@@ -3861,6 +3885,12 @@
     renderUserChip();
     initTable();
     wireControls();
+    // Export to Excel is restricted to CONFIG.exportExcelGroupIds - the button starts hidden
+    // in the page markup itself (not just toggled off here) so it never flashes visible during
+    // the loading screen, before we've even determined the signed-in user's group membership.
+    if (userCanExportExcel) {
+      document.getElementById("export-excel-btn").classList.remove("hidden");
+    }
     // AI chat disabled - the Copilot HTML (FAB/launcher/panel) is commented out above, and
     // its elements no longer exist in the DOM, so wireCopilot() must not be called (it would
     // throw trying to attach listeners to elements that aren't there). Re-enable by restoring
