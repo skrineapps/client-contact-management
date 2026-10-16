@@ -150,6 +150,16 @@
   .search-wrap input::placeholder{color:var(--faint);}
   .search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--faint);font-size:13px;pointer-events:none;}
 
+  /* Summarizes whatever search/column filters are currently applied so they're not forgotten
+     after the fact - populated by renderActiveFiltersBar(), called from renderAll() so it
+     always reflects the table's current state. Hidden entirely when nothing is filtered. */
+  .active-filters-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:-8px 0 16px;}
+  .active-filters-label{font-size:12px;color:var(--muted);font-weight:600;}
+  .filter-chip{display:inline-flex;align-items:center;gap:6px;background:var(--page);border:1px solid var(--line);color:var(--ink);font-size:12.5px;padding:5px 6px 5px 12px;border-radius:999px;max-width:320px;}
+  .filter-chip-remove{display:flex;align-items:center;justify-content:center;width:18px;height:18px;border:none;background:var(--line);color:var(--muted);border-radius:50%;cursor:pointer;font-size:10px;flex-shrink:0;}
+  .filter-chip-remove:hover{background:var(--red);color:#fff;}
+  #active-filters-clear-all{border:none;background:none;color:var(--red);font-size:12.5px;font-weight:600;cursor:pointer;padding:4px 2px;text-decoration:underline;}
+
   .table-wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 20px rgba(20,18,15,0.06);scrollbar-width:none;-ms-overflow-style:none;}
   .table-wrap::-webkit-scrollbar{display:none;}
   /* A second, thin horizontal scrollbar kept in sync with the real one (see
@@ -424,6 +434,8 @@
       <button type="button" id="export-excel-btn" class="hidden"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> Export to Excel</button>
       <button type="button" id="add-contact-btn" class="primary"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add Contact</button>
     </div>
+
+    <div class="active-filters-bar hidden" id="active-filters-bar"></div>
 
     <div class="table-wrap" id="table-wrap">
       <table class="contacts-table" id="contacts-table">
@@ -1885,6 +1897,7 @@
   function renderAll() {
     renderKpis();
     renderList();
+    renderActiveFiltersBar();
   }
 
   // Builds the header (labels + resize handles) and the per-column filter row from
@@ -3026,9 +3039,13 @@
   // Builds a short, human-readable description of every active search/column filter, for the
   // export confirmation modal below. Mirrors filteredContacts()'s own filter-shape handling
   // (range/date/checklist) so the description always matches what will actually be exported.
-  function describeActiveFilters() {
-    const parts = [];
-    if (searchTerm) parts.push(`search "${searchTerm}"`);
+  // Each chip carries the key needed to remove just that one filter (see
+  // renderActiveFiltersBar) alongside its human-readable text. describeActiveFilters() (used by
+  // the export confirmation modal) just needs the text, so it reuses this instead of duplicating
+  // the per-filter-type formatting logic.
+  function activeFilterChips() {
+    const chips = [];
+    if (searchTerm) chips.push({ key: "search", text: `Search: "${searchTerm}"` });
     COLUMNS.forEach((col) => {
       const filter = columnFilterValues[col.key];
       if (!filter) return;
@@ -3037,7 +3054,7 @@
         const bits = [];
         if (filter.min != null) bits.push(`>= ${filter.min}`);
         if (filter.max != null) bits.push(`<= ${filter.max}`);
-        parts.push(`${col.label} ${bits.join(" and ")}`);
+        chips.push({ key: col.key, text: `${col.label} ${bits.join(" and ")}` });
         return;
       }
       if (col.filterType === "date") {
@@ -3045,17 +3062,61 @@
         const bits = [];
         if (filter.month != null) bits.push(MONTH_NAMES[filter.month]);
         if (filter.year != null) bits.push(String(filter.year));
-        parts.push(`${col.label}: ${bits.join(" ")}`);
+        chips.push({ key: col.key, text: `${col.label}: ${bits.join(" ")}` });
         return;
       }
       if (filter.size) {
         const values = [...filter];
         const shown = values.slice(0, 3).join(", ");
         const more = values.length > 3 ? ` (+${values.length - 3} more)` : "";
-        parts.push(`${col.label}: ${shown}${more}`);
+        chips.push({ key: col.key, text: `${col.label}: ${shown}${more}` });
       }
     });
-    return parts;
+    return chips;
+  }
+
+  function describeActiveFilters() {
+    return activeFilterChips().map((chip) => chip.text);
+  }
+
+  // Shows what's currently filtered as a row of removable chips above the table, so it's never
+  // forgotten after the fact. Hidden entirely when nothing is filtered. Re-rendered from
+  // renderAll() every time a filter, search term, or clear-all changes.
+  function renderActiveFiltersBar() {
+    const bar = document.getElementById("active-filters-bar");
+    const chips = activeFilterChips();
+    if (!chips.length) {
+      bar.classList.add("hidden");
+      bar.innerHTML = "";
+      return;
+    }
+    bar.classList.remove("hidden");
+    bar.innerHTML = `
+      <span class="active-filters-label">Filtered by:</span>
+      ${chips.map((chip) => `
+        <span class="filter-chip">
+          ${escapeHtml(chip.text)}
+          <button type="button" class="filter-chip-remove" data-key="${escapeHtml(chip.key)}" aria-label="Remove filter: ${escapeHtml(chip.text)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        </span>`).join("")}
+      <button type="button" id="active-filters-clear-all">Clear all</button>`;
+
+    bar.querySelectorAll(".filter-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.key;
+        if (key === "search") {
+          searchTerm = "";
+          document.getElementById("search").value = "";
+        } else {
+          delete columnFilterValues[key];
+        }
+        currentPage = 1;
+        updateFilterButtonStates();
+        renderAll();
+      });
+    });
+    document.getElementById("active-filters-clear-all").addEventListener("click", () => {
+      document.getElementById("clear-filters").click();
+    });
   }
 
   // Toolbar "Export to Excel" - exports exactly what the table is currently showing (search +
