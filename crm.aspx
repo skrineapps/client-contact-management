@@ -271,9 +271,27 @@
   .export-filter-list{margin:10px 0 0;padding-left:20px;font-size:13.5px;color:var(--ink);line-height:1.6;}
   .btn{border:1px solid var(--line);background:var(--card);font-size:13px;font-weight:700;padding:10px 22px;border-radius:8px;cursor:pointer;color:var(--ink);transition:border-color .15s ease,transform .15s ease;}
   .btn.primary{background:var(--red);border-color:var(--red);color:#fff;}
+  .btn.danger{background:var(--card);border-color:var(--red);color:var(--red);}
+  .btn.danger:hover{background:var(--red);color:#fff;}
   .btn:hover{border-color:var(--red);transform:translateY(-1px);}
   .btn:active{transform:scale(0.97);}
   .btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+
+  /* Shown inline inside the Add/Edit form (not a separate modal) when the email being saved
+     already belongs to another contact, so the form's own in-progress values are never lost
+     under it - see the contact-form submit handler. Two variants: a full side-by-side
+     comparison when the signed-in user can already see that other contact in their own scope,
+     or an ownership-only notice (no contact detail) when they can't. */
+  .duplicate-warning{background:#fff6e5;border:1px solid #f0c674;border-radius:10px;padding:14px 16px;margin:4px 0 18px;font-size:13px;color:var(--ink);}
+  @media (prefers-color-scheme: dark){.duplicate-warning{background:#3a2f12;border-color:#6b5420;}}
+  .duplicate-warning p{margin:0 0 10px;font-weight:600;}
+  .duplicate-warning p.duplicate-note{font-weight:400;}
+  .duplicate-warning p i{color:#b8860b;margin-right:6px;}
+  .duplicate-warning ul{margin:0 0 12px;padding-left:20px;line-height:1.7;}
+  .duplicate-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 14px;}
+  .duplicate-compare > div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.7;}
+  .duplicate-compare strong{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px;}
+  .duplicate-actions{display:flex;flex-wrap:wrap;gap:8px;}
 
   .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px;align-items:start;}
   .form-field{display:flex;flex-direction:column;gap:6px;}
@@ -2409,12 +2427,78 @@
         <dt>Modified</dt><dd>${c.modified ? new Date(c.modified).toLocaleString() : "-"}</dd>
       </dl>
       <div class="close-row">
+        ${userCanViewAllContacts ? `<button type="button" class="btn danger" id="modal-delete-btn">Delete</button>` : ""}
         <button type="button" class="btn" id="modal-edit-btn">Edit</button>
         <button type="button" class="btn primary" id="modal-close-2">Close</button>
       </div>`;
     document.getElementById("modal-close").addEventListener("click", closeModal);
     document.getElementById("modal-close-2").addEventListener("click", closeModal);
     document.getElementById("modal-edit-btn").addEventListener("click", () => renderFormModal(c));
+    // Delete is restricted to the admin team (same CONFIG.viewAllContactsGroupIds used for
+    // "view all contacts") - the button above isn't even rendered for anyone else, and this is
+    // a second check in case openModal() is ever called from somewhere that skips that markup.
+    const deleteBtn = document.getElementById("modal-delete-btn");
+    if (deleteBtn) deleteBtn.addEventListener("click", () => { if (userCanViewAllContacts) openDeleteConfirmModal(c); });
+  }
+
+  async function deleteContactOnServer(itemId) {
+    const token = await getSharePointToken();
+    const listTitle = encodeURIComponent(CONFIG.listDisplayName);
+    const url = `${CONFIG.sharePointResource}${CONFIG.sitePath}/_api/web/lists/getbytitle('${listTitle}')/items(${itemId})`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json;odata=verbose",
+        "X-HTTP-Method": "DELETE",
+        "IF-MATCH": "*",
+      },
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.error(`[Contacts] SharePoint REST delete failed:\nURL: POST ${url}\nStatus: ${res.status}\nResponse:\n${text}`);
+      if (res.status === 403) {
+        throw new Error("Permission denied by SharePoint (403) - the SharePoint API's AllSites.Write delegated permission needs to be admin-consented to delete contacts.");
+      }
+      throw new Error(`Could not delete contact (${res.status}): ${text}`);
+    }
+  }
+
+  // Admin-only (see userCanViewAllContacts check at the Delete button itself) and irreversible,
+  // so it gets its own confirmation step rather than deleting straight from the detail modal.
+  function openDeleteConfirmModal(c) {
+    document.getElementById("modal-box").innerHTML = `
+      <div class="modal-top">
+        <h2>Delete Contact</h2>
+        <button class="close" id="modal-close" aria-label="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      <p>Permanently delete <strong>${escapeHtml(contactFullName(c)) || "this contact"}</strong>? This cannot be undone.</p>
+      <div class="form-error hidden" id="form-error"></div>
+      <div class="close-row">
+        <button type="button" class="btn" id="delete-cancel-btn">Cancel</button>
+        <button type="button" class="btn danger" id="delete-confirm-btn">Delete</button>
+      </div>`;
+    document.getElementById("modal-close").addEventListener("click", closeModal);
+    document.getElementById("delete-cancel-btn").addEventListener("click", () => renderViewModal(c));
+    document.getElementById("delete-confirm-btn").addEventListener("click", async () => {
+      const btn = document.getElementById("delete-confirm-btn");
+      const errorBox = document.getElementById("form-error");
+      btn.disabled = true;
+      btn.textContent = "Deleting...";
+      try {
+        await deleteContactOnServer(c.id);
+        allContacts = allContacts.filter((x) => x.id !== c.id);
+        closeModal();
+        currentPage = 1;
+        renderAll();
+        refreshContactsInBackground();
+      } catch (err) {
+        errorBox.textContent = err.message;
+        errorBox.classList.remove("hidden");
+        btn.disabled = false;
+        btn.textContent = "Delete";
+      }
+    });
   }
 
   function ciIncludes(list, value) {
@@ -2619,6 +2703,7 @@
           )}
         </div>
         <div class="form-error hidden" id="form-error"></div>
+        <div class="duplicate-warning hidden" id="duplicate-warning"></div>
         <div class="close-row">
           <button type="button" class="btn" id="form-cancel">Cancel</button>
           <button type="submit" class="btn primary" id="form-save">${isNew ? "Add Contact" : "Save Changes"}</button>
@@ -2661,40 +2746,99 @@
       if (!values.lawyers.length) missing.push("Lawyer In Charge");
 
       const errorBox = document.getElementById("form-error");
+      const dupBox = document.getElementById("duplicate-warning");
       if (missing.length) {
+        dupBox.classList.add("hidden");
         errorBox.textContent = `Please fill in: ${missing.join(", ")}.`;
         errorBox.classList.remove("hidden");
         return;
       }
 
       const saveBtn = document.getElementById("form-save");
-      errorBox.classList.add("hidden");
-      saveBtn.disabled = true;
-      saveBtn.textContent = "Saving...";
-      try {
-        if (isNew) {
-          const newId = await createContact(values);
-          const localContact = valuesToLocalContact(values, null);
-          localContact.id = newId;
-          allContacts = [localContact, ...allContacts];
-        } else {
-          await updateContact(contact.id, values);
-          const localContact = valuesToLocalContact(values, contact);
-          allContacts = allContacts.map((c) => (c.id === contact.id ? localContact : c));
+
+      async function performSave() {
+        dupBox.classList.add("hidden");
+        errorBox.classList.add("hidden");
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving...";
+        try {
+          if (isNew) {
+            const newId = await createContact(values);
+            const localContact = valuesToLocalContact(values, null);
+            localContact.id = newId;
+            allContacts = [localContact, ...allContacts];
+          } else {
+            await updateContact(contact.id, values);
+            const localContact = valuesToLocalContact(values, contact);
+            allContacts = allContacts.map((c) => (c.id === contact.id ? localContact : c));
+          }
+          // The table reflects the save immediately, from the values just submitted - no need
+          // to wait on a re-fetch (which was also masking a separate bug: SharePoint doesn't
+          // always make a write visible to an immediate read-back right away). A background
+          // refresh (thin top bar, not the full-screen loader) reconciles afterward.
+          closeModal();
+          currentPage = 1;
+          renderAll();
+          refreshContactsInBackground();
+        } catch (err) {
+          errorBox.textContent = err.message;
+          errorBox.classList.remove("hidden");
+          saveBtn.disabled = false;
+          saveBtn.textContent = isNew ? "Add Contact" : "Save Changes";
         }
-        // The table reflects the save immediately, from the values just submitted - no need
-        // to wait on a re-fetch (which was also masking a separate bug: SharePoint doesn't
-        // always make a write visible to an immediate read-back right away). A background
-        // refresh (thin top bar, not the full-screen loader) reconciles afterward.
-        closeModal();
-        currentPage = 1;
-        renderAll();
-        refreshContactsInBackground();
-      } catch (err) {
-        errorBox.textContent = err.message;
-        errorBox.classList.remove("hidden");
-        saveBtn.disabled = false;
-        saveBtn.textContent = isNew ? "Add Contact" : "Save Changes";
+      }
+
+      // Duplicate check runs against the full in-memory contact list (allContacts), not just
+      // whatever subset is in the current user's own scope, so this catches duplicates owned by
+      // someone else too - not only ones the user happens to be able to see in the table.
+      errorBox.classList.add("hidden");
+      const newEmail = normalizeEmail(values.email);
+      const duplicates = allContacts.filter((c) => normalizeEmail(c.email) === newEmail && (!contact || c.id !== contact.id));
+      if (!duplicates.length) {
+        performSave();
+        return;
+      }
+
+      // If the signed-in user could already see at least one of the duplicates in their own
+      // normal scope (admin, or a Lawyer/creator match - same rule as currentScopeContacts()),
+      // show a full side-by-side comparison so they can choose. Otherwise - the duplicate
+      // belongs entirely to someone else's scope - only reveal who owns it, not its details.
+      const visibleDup = duplicates.find((d) => userCanViewAllContacts || contactMatchesUser(d, currentUser));
+      if (visibleDup) {
+        dupBox.innerHTML = `
+          <p><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>This email already belongs to an existing contact.</p>
+          <div class="duplicate-compare">
+            <div><strong>Existing contact</strong>${escapeHtml(contactFullName(visibleDup)) || "(No name)"}<br>${escapeHtml(visibleDup.companyName) || "-"}<br>${escapeHtml(visibleDup.position) || "-"}</div>
+            <div><strong>You're entering</strong>${escapeHtml([values.firstName, values.lastName].filter(Boolean).join(" ")) || "(No name)"}<br>${escapeHtml(values.companyName) || "-"}<br>${escapeHtml(values.position) || "-"}</div>
+          </div>
+          <div class="duplicate-actions">
+            <button type="button" class="btn" id="dup-keep-existing">Keep existing contact</button>
+            <button type="button" class="btn primary" id="dup-save-new">Save as new, separate contact</button>
+            <button type="button" class="btn" id="dup-cancel">Cancel</button>
+          </div>`;
+        dupBox.classList.remove("hidden");
+        document.getElementById("dup-keep-existing").addEventListener("click", closeModal);
+        document.getElementById("dup-save-new").addEventListener("click", performSave);
+        document.getElementById("dup-cancel").addEventListener("click", () => dupBox.classList.add("hidden"));
+      } else {
+        // Blocked outright, not just discouraged - saving here would either create a silent
+        // duplicate record or (worse) let someone overwrite a contact they can't even see, for
+        // an email that's already owned elsewhere. There's no "save anyway" option.
+        const dup = duplicates[0];
+        dupBox.innerHTML = `
+          <p><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>This email already exists on another contact you don't have access to view. It's associated with:</p>
+          <ul>
+            <li>Partner In Charge: ${escapeHtml(dup.partnerInCharge) || "-"}</li>
+            <li>Lawyer(s): ${escapeHtml(dup.lawyers.join(", ")) || "-"}</li>
+            <li>Created by: ${escapeHtml(dup.createdBy) || "-"}</li>
+            <li>Last modified by: ${escapeHtml(dup.modifiedBy) || "-"}</li>
+          </ul>
+          <p class="duplicate-note">Please contact the relevant person in charge of this contact instead of saving a duplicate.</p>
+          <div class="duplicate-actions">
+            <button type="button" class="btn" id="dup-cancel">OK</button>
+          </div>`;
+        dupBox.classList.remove("hidden");
+        document.getElementById("dup-cancel").addEventListener("click", () => dupBox.classList.add("hidden"));
       }
     });
   }
