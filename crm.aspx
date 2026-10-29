@@ -308,7 +308,14 @@
   .dropdown-trigger-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .dropdown-trigger i{color:var(--faint);font-size:11px;flex:0 0 auto;transition:transform .15s ease;}
   .dropdown-trigger.open i{transform:rotate(180deg);}
-  .checklist{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:30;border:1px solid var(--line);border-radius:8px;background:var(--card);box-shadow:0 14px 32px rgba(20,18,15,0.16);overflow:hidden;}
+  /* position/top/left/bottom/width are set inline by positionChecklistPanel() once this is
+     shown - position:fixed (not absolute) so it's never clipped by .modal's own
+     overflow-y:auto when the trigger is near the bottom of the form. Previously, clipping
+     there could leave the dark overlay backdrop showing through right where part of the
+     dropdown should have been - clicking it looked like clicking the dropdown but actually
+     closed the whole Add/Edit form. z-index is above .overlay's 1000 so it isn't hidden
+     behind the backdrop once it's fixed to the viewport instead of positioned inside .modal. */
+  .checklist{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:1600;border:1px solid var(--line);border-radius:8px;background:var(--card);box-shadow:0 14px 32px rgba(20,18,15,0.16);overflow:hidden;}
   .checklist-search{width:100%;box-sizing:border-box;font-size:13px;font-weight:400;padding:9px 12px;border:none;border-bottom:1px solid var(--line);background:var(--card);color:var(--ink);}
   .checklist-search:focus{outline:none;background:var(--page);}
   .checklist-items{max-height:200px;overflow-y:auto;padding:6px;display:flex !important;flex-direction:column !important;gap:2px;}
@@ -2554,6 +2561,30 @@
   // Charge) within a form: click the trigger to open/close its panel, keep the trigger's
   // summary text in sync as checkboxes change, and close whichever panel is open when the
   // user clicks anywhere outside it.
+  // Positions an opened checklist panel with real viewport coordinates (via getBoundingClientRect)
+  // instead of leaving it CSS-absolute relative to the trigger - see the .checklist comment for
+  // why: .modal scrolls its own content, and a trigger near the bottom of a long form (e.g.
+  // "Lawyer In Charge", the last field) could open a panel that gets partly clipped there,
+  // exposing the dark overlay backdrop right where the user expects a checkbox to be.
+  function positionChecklistPanel(panel, trigger) {
+    const rect = trigger.getBoundingClientRect();
+    const margin = 8;
+    panel.style.position = "fixed";
+    panel.style.left = `${rect.left}px`;
+    panel.style.right = "auto";
+    panel.style.width = `${rect.width}px`;
+    const estimatedHeight = panel.offsetHeight || 250;
+    const spaceBelow = window.innerHeight - rect.bottom - margin;
+    const spaceAbove = rect.top - margin;
+    if (spaceBelow < estimatedHeight && spaceAbove > spaceBelow) {
+      panel.style.top = "auto";
+      panel.style.bottom = `${window.innerHeight - rect.top + 4}px`;
+    } else {
+      panel.style.bottom = "auto";
+      panel.style.top = `${rect.bottom + 4}px`;
+    }
+  }
+
   function wireDropdownChecklists(container) {
     container.querySelectorAll(".dropdown-trigger").forEach((trigger) => {
       const panel = document.getElementById(trigger.dataset.checklist);
@@ -2567,6 +2598,7 @@
         if (willOpen) {
           panel.classList.remove("hidden");
           trigger.classList.add("open");
+          positionChecklistPanel(panel, trigger);
           if (search) {
             search.value = "";
             panel.querySelectorAll(".checklist-item").forEach((item) => item.classList.remove("filtered-out"));
@@ -2590,6 +2622,12 @@
     });
     container.addEventListener("click", (e) => {
       if (e.target.closest(".dropdown-check")) return;
+      container.querySelectorAll(".checklist").forEach((p) => p.classList.add("hidden"));
+      container.querySelectorAll(".dropdown-trigger").forEach((t) => t.classList.remove("open"));
+    });
+    // A fixed-position panel doesn't move when .modal's own content scrolls, so it would drift
+    // out of alignment with its trigger - close it instead of letting that happen.
+    document.getElementById("modal-box").addEventListener("scroll", () => {
       container.querySelectorAll(".checklist").forEach((p) => p.classList.add("hidden"));
       container.querySelectorAll(".dropdown-trigger").forEach((t) => t.classList.remove("open"));
     });
